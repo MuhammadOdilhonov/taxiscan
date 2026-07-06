@@ -161,7 +161,7 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# CORS — frontend dev
+# CORS — frontend dev + production
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -170,6 +170,19 @@ CORS_ALLOWED_ORIGINS = [
     # Expo web (mobile)
     "http://localhost:8081",
     "http://127.0.0.1:8081",
+    # Production
+    "https://taxiscan.com",
+    "https://www.taxiscan.com",
+    "http://taxiscan.com",
+    "http://www.taxiscan.com",
+]
+
+# CSRF — production domenlar (admin panel va session-formalar uchun)
+CSRF_TRUSTED_ORIGINS = [
+    "https://taxiscan.com",
+    "https://www.taxiscan.com",
+    "https://backend.taxiscan.com",
+    "http://backend.taxiscan.com",
 ]
 # Mobil qurilma / Expo dev-server LAN IP sidan kelgan so'rovlarga ham ruxsat
 # (masalan http://192.168.x.x:8081 yoki :3001) — faqat dev uchun.
