@@ -171,18 +171,18 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
     "http://127.0.0.1:8081",
     # Production
-    "https://taxiscan.com",
-    "https://www.taxiscan.com",
-    "http://taxiscan.com",
-    "http://www.taxiscan.com",
+    "https://taxiscan.app",
+    "https://www.taxiscan.app",
+    "http://taxiscan.app",
+    "http://www.taxiscan.app",
 ]
 
 # CSRF — production domenlar (admin panel va session-formalar uchun)
 CSRF_TRUSTED_ORIGINS = [
-    "https://taxiscan.com",
-    "https://www.taxiscan.com",
-    "https://backend.taxiscan.com",
-    "http://backend.taxiscan.com",
+    "https://taxiscan.app",
+    "https://www.taxiscan.app",
+    "https://backend.taxiscan.app",
+    "http://backend.taxiscan.app",
 ]
 # Mobil qurilma / Expo dev-server LAN IP sidan kelgan so'rovlarga ham ruxsat
 # (masalan http://192.168.x.x:8081 yoki :3001) — faqat dev uchun.
