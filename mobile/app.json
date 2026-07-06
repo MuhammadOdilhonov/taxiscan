@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "TaxiNarx",
+    "slug": "taxinarx",
+    "version": "1.0.0",
+    "scheme": "taxinarx",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#FFCC00",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "uz.taxinarx.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Joylashuvingiz hozirgi joydagi taksi narxlarini hisoblash uchun ishlatiladi."
+      }
+    },
+    "android": {
+      "package": "uz.taxinarx.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#FFCC00"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Joylashuvingiz hozirgi joydagi taksi narxlarini hisoblash uchun ishlatiladi."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
