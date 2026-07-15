@@ -122,6 +122,12 @@ class PriceEstimate(models.Model):
     search_id = models.UUIDField(
         "Qidiruv ID", null=True, blank=True, db_index=True,
     )
+    # Qidiruvchining barqaror kaliti: "u:<user_id>" yoki anonim uchun "ip:<ip>".
+    # Talab statistikasi UNIKAL ODAMLARNI sanaydi — bitta odam 10 marta bossa
+    # ham "1 kishi chaqiryapti" bo'lib qoladi (10 emas).
+    searcher_key = models.CharField(
+        "Qidiruvchi kaliti", max_length=64, null=True, blank=True, db_index=True,
+    )
     region = models.ForeignKey(
         Region, on_delete=models.SET_NULL, null=True, blank=True
     )

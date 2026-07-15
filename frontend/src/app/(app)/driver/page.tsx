@@ -133,7 +133,7 @@ export default function DriverHome() {
       regions.map((r) => {
         const dm = demandMap[r.id];
         const statParts: string[] = [];
-        if (dm && dm.searches > 0) statParts.push(`${dm.searches.toLocaleString()} qidiruv (7 kun)`);
+        if (dm && dm.searches > 0) statParts.push(`${dm.searches.toLocaleString()} kishi chaqirgan (7 kun)`);
         if (regionStats[r.id]) statParts.push(`O'rtacha: ${formatUzs(regionStats[r.id])}`);
         return {
           id: r.id,
@@ -252,7 +252,7 @@ export default function DriverHome() {
                   <Users size={16} className="text-brand-700" />
                   <span className="text-2xl font-extrabold text-ink">{activeDemand.searches.toLocaleString()}</span>
                 </div>
-                <div className="text-[11px] text-ink-muted mt-0.5">qidiruv ({demand?.window})</div>
+                <div className="text-[11px] text-ink-muted mt-0.5">kishi chaqirgan ({demand?.window})</div>
               </div>
               <div className="w-px bg-ink-line mx-1" />
               <div className="flex-1 text-center">
@@ -264,7 +264,7 @@ export default function DriverHome() {
               </div>
             </div>
             <p className="text-xs text-ink-muted mt-3 leading-snug">
-              Bu rayon barcha qidiruvlarning <strong className="text-ink">{activeDemand.share_pct}%</strong>ini tashkil etadi.{" "}
+              Bu rayon barcha chaqiruvchilarning <strong className="text-ink">{activeDemand.share_pct}%</strong>ini tashkil etadi.{" "}
               {activeDemand.level === "high"
                 ? "Yo'lovchilar shu yerda ko'p qidirmoqda — shu zonada bo'ling!"
                 : activeDemand.level === "low"
@@ -302,7 +302,7 @@ export default function DriverHome() {
             </div>
             {demand.totals && (
               <div className="mt-2.5 pt-2.5 border-t border-ink-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-                <span>Tizimda: <strong className="text-ink">{demand.totals.searches.toLocaleString()}</strong> qidiruv</span>
+                <span>Tizimda: <strong className="text-ink">{demand.totals.searches.toLocaleString()}</strong> kishi chaqirgan</span>
                 <span><strong className="text-ink">{demand.totals.drivers}</strong> haydovchi · <strong className="text-ink">{demand.totals.passengers}</strong> yo'lovchi</span>
               </div>
             )}
@@ -313,7 +313,7 @@ export default function DriverHome() {
           <div className="card p-3 bg-ink-bg text-xs flex items-center gap-2 text-ink-muted">
             <span>
               Manzilda (<strong className="text-ink">{demand.destination.region_name}</strong>):{" "}
-              {demand.destination.searches.toLocaleString()} qidiruv
+              {demand.destination.searches.toLocaleString()} kishi chaqirgan
             </span>
             <span className={`ml-auto font-bold ${levelColor(demand.destination.level)}`}>
               {LEVEL_LABEL[demand.destination.level]}

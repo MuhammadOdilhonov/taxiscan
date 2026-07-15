@@ -21,19 +21,20 @@ WINDOW_LABEL = "so'nggi 7 kun"
 
 
 def _region_stats(since):
-    """Rayon -> (qidiruvlar soni, o'rtacha narx) — real PriceEstimate'dan.
+    """Rayon -> (UNIKAL qidiruvchi ODAMLAR soni, o'rtacha narx).
 
-    MUHIM: bitta qidiruv har brend uchun alohida yozuv yaratadi (~20 ta),
-    shuning uchun yozuvlar sonini emas, UNIKAL search_id'larni sanaymiz —
-    aks holda 1 kishi qidirsa "20 ta qidiruv" bo'lib ko'rinardi.
+    MUHIM: yozuvlarni EMAS, unikal odamlarni sanaymiz (searcher_key —
+    user id yoki IP). Sabablari:
+      * bitta qidiruv har brend uchun alohida yozuv yaratadi (~20 ta);
+      * bitta odam tugmani 10 marta bossa ham u 1 KISHI — 10 emas.
     Count(distinct) NULL'larni sanamaydi, shu sabab tick_stats/seed'ning
-    sun'iy yozuvlari (search_id=NULL) qidiruvga qo'shilmaydi.
+    sun'iy yozuvlari (searcher_key=NULL) hisobga qo'shilmaydi.
     """
     rows = (
         PriceEstimate.objects
         .filter(created_at__gte=since, region__isnull=False)
         .values("region_id")
-        .annotate(n=Count("search_id", distinct=True), avg=Avg("price_uzs"))
+        .annotate(n=Count("searcher_key", distinct=True), avg=Avg("price_uzs"))
     )
     return {r["region_id"]: (r["n"], int(r["avg"] or 0)) for r in rows}
 
@@ -128,11 +129,11 @@ def system_totals(now=None):
     now = now or timezone.now()
     since = now - timedelta(days=WINDOW_DAYS)
     return {
-        # Unikal qidiruvlar (yozuvlar emas) — 1 qidiruv ~20 yozuv yaratadi
+        # Unikal qidiruvchi odamlar (yozuvlar ham, bosishlar soni ham emas)
         "searches": (
             PriceEstimate.objects
-            .filter(created_at__gte=since, search_id__isnull=False)
-            .values("search_id").distinct().count()
+            .filter(created_at__gte=since, searcher_key__isnull=False)
+            .values("searcher_key").distinct().count()
         ),
         "drivers": User.objects.filter(role="driver").count(),
         "passengers": User.objects.filter(role="passenger").count(),

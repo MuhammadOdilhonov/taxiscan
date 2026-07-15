@@ -210,6 +210,32 @@ def _service_demand_mult(service_code: str, base_hour: float, now: datetime = No
     return 1.0 + wave * amp
 
 
+# === WB Taxi tungi tarifi ==================================================
+# Real kuzatuv: WB Taxi 22:40 dan 00:20 gacha narxni 2.2 barobar oshiradi
+# (brendning o'z tungi tarifi). Bu BOSHQA brendlarga tegishli EMAS — ular
+# tunda odatdagi past talab koeffitsientida qoladi.
+WB_NIGHT_BRAND = "wb_taxi"
+WB_NIGHT_MULT = 2.2
+_WB_NIGHT_START_MIN = 22 * 60 + 40   # 22:40
+_WB_NIGHT_END_MIN = 20               # 00:20
+
+
+def brand_night_mult(service_code: str, when: datetime = None) -> float:
+    """Brendga xos tungi tarif ko'paytuvchisi (Toshkent vaqti bo'yicha).
+
+    Hozircha faqat WB Taxi: 22:40–00:20 oralig'ida 2.2x. Boshqa brendlar 1.0.
+    """
+    brand = (service_code or "").split("__")[0]
+    if brand != WB_NIGHT_BRAND:
+        return 1.0
+    if when is None:
+        when = tashkent_now()
+    m = when.hour * 60 + when.minute
+    if m >= _WB_NIGHT_START_MIN or m < _WB_NIGHT_END_MIN:
+        return WB_NIGHT_MULT
+    return 1.0
+
+
 def region_level(region_id) -> float:
     """Tuman bo'yicha UMUMIY narx darajasi (barcha brendga BIR XIL) — ~0.95..1.06.
 
@@ -275,7 +301,10 @@ def current_surge(hour: int = None, service_code: str = "default",
     surge = (base + weather_boost) * weekly * demand
     # Chegara: pol 0.80 (sokin payt ~20% arzon), shift 1.55 (eng zich pikda eng qimmat
     # brend ham real chegarada qoladi). Real spread shu oraliqda hosil bo'ladi.
-    return round(min(1.55, max(0.80, surge)), 3)
+    surge = min(1.55, max(0.80, surge))
+    # Brendga xos tungi tarif (WB 22:40–00:20 → 2.2x) — chegaradan KEYIN,
+    # chunki bu talab surge'i emas, brendning o'z rasmiy tungi tarifi.
+    return round(surge * brand_night_mult(service_code, now), 3)
 
 
 def calculate_price(service, distance_km: float, duration_min: float, surge: float = None):

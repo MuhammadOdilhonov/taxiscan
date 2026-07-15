@@ -4,7 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from .models import TaxiService, PriceEstimate, Region
 from .providers import get_provider
 from .providers.formula import (
-    haversine_km, calculate_price, current_surge, _base_hour_surge, tashkent_now,
+    haversine_km, calculate_price, current_surge, _base_hour_surge,
+    tashkent_now, region_level,
 )
 from .routing import get_route, get_routes
 from .weather import weather_surge
@@ -95,6 +96,7 @@ def aggregate_estimates(
     user=None,
     save: bool = True,
     stops=None,
+    searcher_key: str | None = None,
 ):
     """
     Barcha faol taxi xizmatlaridan parallel ravishda narxlarni so'raydi
@@ -142,6 +144,17 @@ def aggregate_estimates(
 
     region = find_region_for_point(start_lat, start_lng)
 
+    # Chaqirilgan joy (tuman) narx darajasi — markaziy/biznes tumanlarda narx
+    # sal yuqoriroq, chekkada pastroq (~0.95..1.06). BARCHA brendga TENG
+    # qo'llanadi, shuning uchun brendlar tartibi o'zgarmaydi.
+    rlvl = region_level(region.id) if region else 1.0
+
+    def _apply_region(price: int, minimum_fare: int) -> int:
+        """Tuman darajasini narxga qo'llab, 100 so'mga yumaloqlaydi."""
+        if rlvl == 1.0:
+            return price
+        return max(minimum_fare, round(price * rlvl / 100) * 100)
+
     # Ob-havo keshini bir marta isitamiz — parallel narx so'rovlari kesh'dan oladi
     wx_boost, wx_reason, wx_info = weather_surge()
 
@@ -170,12 +183,16 @@ def aggregate_estimates(
             if not result.is_ok:
                 continue
 
-            # HALOL narx: rayon bo'yicha per-brend random farq (region_factor)
-            # ATAY qo'llanmaydi — u brend tartibini soxta aralashtirardi.
+            # Chaqirilgan joy darajasi (region_level) — barcha brendga teng.
+            # Per-brend random farq (region_factor) esa ATAY qo'llanmaydi —
+            # u brend tartibini soxta aralashtirardi.
+            result.price_uzs = _apply_region(result.price_uzs, service.minimum_fare_uzs)
+
             if save:
                 PriceEstimate.objects.create(
                     user=user if (user and user.is_authenticated) else None,
                     search_id=search_id,
+                    searcher_key=searcher_key or None,
                     service=service,
                     start_lat=start_lat,
                     start_lng=start_lng,
@@ -238,6 +255,7 @@ def aggregate_estimates(
             price, surge = calculate_price(
                 service, r_route["distance_km"], r_route["duration_min"]
             )
+            price = _apply_region(price, service.minimum_fare_uzs)
             per_service.append({
                 "service_id": service.id,
                 "service_code": service.code,

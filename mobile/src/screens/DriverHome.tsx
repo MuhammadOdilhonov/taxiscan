@@ -317,7 +317,7 @@ export function DriverHome() {
             </View>
           </View>
           <View style={styles.demandStatsRow}>
-            <DemandStat icon="people" value={activeDemand.searches.toLocaleString()} label={`qidiruv (${demand?.window || "7 kun"})`} color={colors.brandDark} colors={colors} />
+            <DemandStat icon="people" value={activeDemand.searches.toLocaleString()} label={`kishi chaqirgan (${demand?.window || "7 kun"})`} color={colors.brandDark} colors={colors} />
             <View style={[styles.demandDivider, { backgroundColor: colors.line }]} />
             <DemandStat
               icon="cash-outline"
@@ -328,7 +328,7 @@ export function DriverHome() {
             />
           </View>
           <Text style={[styles.demandHint, { color: colors.inkMuted }]}>
-            Bu rayon barcha qidiruvlarning {activeDemand.share_pct}%ini tashkil etadi.{" "}
+            Bu rayon barcha chaqiruvchilarning {activeDemand.share_pct}%ini tashkil etadi.{" "}
             {activeDemand.level === "high"
               ? "Yo'lovchilar shu yerda ko'p — shu zonada bo'ling!"
               : activeDemand.level === "low"
@@ -342,7 +342,7 @@ export function DriverHome() {
         <Card padded style={styles.diffCard}>
           <Text style={{ color: colors.inkMuted, fontSize: 12, flex: 1 }}>
             Manzilda (<Text style={{ color: colors.ink, fontWeight: "800" }}>{demand.destination.region_name}</Text>):{" "}
-            {demand.destination.searches.toLocaleString()} qidiruv
+            {demand.destination.searches.toLocaleString()} kishi chaqirgan
           </Text>
           <View style={[styles.levelBadge, { backgroundColor: levelColor(demand.destination.level, colors) + "22" }]}>
             <Text style={{ color: levelColor(demand.destination.level, colors), fontSize: 11, fontWeight: "900" }}>
@@ -388,7 +388,7 @@ export function DriverHome() {
           </View>
           {demand.totals ? (
             <Text style={{ color: colors.inkMuted, fontSize: 11, marginTop: 8, textAlign: "center" }}>
-              Tizimda {demand.totals.searches.toLocaleString()} qidiruv · {demand.totals.drivers} haydovchi · {demand.totals.passengers} yo'lovchi
+              Tizimda {demand.totals.searches.toLocaleString()} kishi chaqirgan · {demand.totals.drivers} haydovchi · {demand.totals.passengers} yo'lovchi
             </Text>
           ) : null}
         </View>

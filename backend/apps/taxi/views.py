@@ -37,6 +37,19 @@ class RegionViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({"results": data, "count": len(data)})
 
 
+def _searcher_key(request) -> str:
+    """Qidiruvchini barqaror aniqlash: login qilgan bo'lsa user id, aks holda IP.
+
+    Talab statistikasi shu kalit bo'yicha UNIKAL odamlarni sanaydi — bitta odam
+    tugmani 10 marta bossa ham "1 kishi" bo'lib qoladi.
+    """
+    if request.user and getattr(request.user, "is_authenticated", False):
+        return f"u:{request.user.id}"
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    ip = xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR", "")
+    return f"ip:{ip}" if ip else ""
+
+
 class EstimateView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -52,6 +65,7 @@ class EstimateView(APIView):
             end_lng=d["end_lng"],
             user=request.user,
             stops=d.get("stops") or [],
+            searcher_key=_searcher_key(request),
         )
         return Response(result)
 
@@ -196,12 +210,16 @@ class LivePricesView(APIView):
         prev_minute = now - timedelta(minutes=1)
         # Bir minut oldingi narxni hisoblash uchun "soat" o'zgarmagan deb hisoblaymiz
         # (rare edge case: soat o'tib ketganda kichik sakrash bo'lishi mumkin, bu ham realistik)
-        from .providers.formula import _base_hour_surge, _minute_jitter
+        from .providers.formula import _base_hour_surge, _minute_jitter, brand_night_mult
 
         results = []
         for s in services:
-            cur_surge = _base_hour_surge(now.hour) * _minute_jitter(s.code, now)
-            prev_surge = _base_hour_surge(prev_minute.hour) * _minute_jitter(s.code, prev_minute)
+            # brand_night_mult — WB tungi tarifi (22:40–00:20 → 2.2x) jonli
+            # narxlarda ham ko'rinsin
+            cur_surge = (_base_hour_surge(now.hour) * _minute_jitter(s.code, now)
+                         * brand_night_mult(s.code, now))
+            prev_surge = (_base_hour_surge(prev_minute.hour) * _minute_jitter(s.code, prev_minute)
+                          * brand_night_mult(s.code, prev_minute))
 
             cur_price, _ = calculate_price(s, distance_km, duration_min, surge=cur_surge)
             prev_price, _ = calculate_price(s, distance_km, duration_min, surge=prev_surge)
