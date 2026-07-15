@@ -9,7 +9,22 @@ haversine + tirbandlik koeffitsientiga fallback qiladi.
 import math
 import hashlib
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from .base import BaseProvider, EstimateResult
+
+TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
+
+
+def tashkent_now() -> datetime:
+    """Toshkent lokal vaqti — server TZ (prod'da UTC) dan MUSTAQIL.
+
+    datetime.now() server tizim vaqtini oladi: UTC serverda Toshkentdan 5 soat
+    orqada. Natijada Toshkent tunida (22:40–00:20) server 17:40–19:20 deb bilib,
+    kechki pik koeffitsientlarini (tirbandlik 1.5–1.7 + surge) qo'llab yuborardi
+    — narx tunda ~2.2 barobar oshib ketardi. Barcha soatga bog'liq hisoblar
+    faqat shu funksiyadan foydalanishi shart.
+    """
+    return datetime.now(TASHKENT_TZ)
 
 
 def haversine_km(lat1, lng1, lat2, lng2) -> float:
@@ -76,7 +91,7 @@ def _traffic_factor(hour: int, weekday: int = 0) -> float:
 def traffic_adjusted_duration(free_flow_min: float, when: datetime = None) -> float:
     """Free-flow yo'l vaqtini joriy soatdagi real tirbandlik vaqtiga aylantiradi."""
     if when is None:
-        when = datetime.now()
+        when = tashkent_now()
     return round(free_flow_min * _traffic_factor(when.hour, when.weekday()), 1)
 
 
@@ -132,7 +147,7 @@ def _weekly_factor(when: datetime = None) -> float:
       * har haftaga barqaror kichik deterministik siljish (hafta ichida o'zgarmas)
     """
     if when is None:
-        when = datetime.now()
+        when = tashkent_now()
     iso_year, iso_week, _ = when.isocalendar()
     # Qish (dekabr–fevral) talab yuqori, bahor/kuz mo''tadil — silliq yillik to'lqin.
     # Fazani shunday tanlaymizki, ~1-hafta (yanvar) eng yuqori bo'lsin.
@@ -152,7 +167,7 @@ def _minute_jitter(service_code: str, now: datetime = None) -> float:
     Har service uchun fluctuation boshqa-boshqa — real bozorni taqlid qiladi.
     """
     if now is None:
-        now = datetime.now()
+        now = tashkent_now()
     # Minutga round, soniyalar e'tibordan tashqari
     minute_bucket = now.strftime("%Y%m%d%H%M")
     # Bir oldingi minut va keyingi minutni ham hisobga olib smooth bo'lsin
@@ -181,7 +196,7 @@ def _service_demand_mult(service_code: str, base_hour: float, now: datetime = No
     eng arzon yoki doim eng qimmat emas, lekin har payt aniq farq ko'rinadi (ishonchli).
     """
     if now is None:
-        now = datetime.now()
+        now = tashkent_now()
     brand = (service_code or "").split("__")[0]
     # Brend bo'yicha barqaror faza (0..2π) va davr (140..220 daqiqa)
     h = int(hashlib.md5(f"sd:{brand}".encode()).hexdigest()[:8], 16)
@@ -241,7 +256,7 @@ def current_surge(hour: int = None, service_code: str = "default",
 
     `when` — qaysi onga hisoblash (statistika o'tgan soatlar uchun beradi); berilmasa hozir.
     """
-    now = when or datetime.now()
+    now = when or tashkent_now()
     if hour is None:
         hour = now.hour
     if weekday is None:

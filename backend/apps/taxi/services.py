@@ -1,9 +1,11 @@
 """Taxi narxlari aggregatorining yuqori sathli servisi."""
+import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from .models import TaxiService, PriceEstimate, Region
 from .providers import get_provider
-from .providers.formula import haversine_km, calculate_price, current_surge, _base_hour_surge
+from .providers.formula import (
+    haversine_km, calculate_price, current_surge, _base_hour_surge, tashkent_now,
+)
 from .routing import get_route, get_routes
 from .weather import weather_surge
 
@@ -143,6 +145,10 @@ def aggregate_estimates(
     # Ob-havo keshini bir marta isitamiz — parallel narx so'rovlari kesh'dan oladi
     wx_boost, wx_reason, wx_info = weather_surge()
 
+    # Bitta qidiruv = bitta ID: barcha brend yozuvlari shu ID bilan bog'lanadi,
+    # demand statistikasi esa yozuvlarni emas, unikal qidiruvlarni sanaydi
+    search_id = uuid.uuid4() if save else None
+
     def _fetch(service):
         provider = get_provider(service)
         try:
@@ -169,6 +175,7 @@ def aggregate_estimates(
             if save:
                 PriceEstimate.objects.create(
                     user=user if (user and user.is_authenticated) else None,
+                    search_id=search_id,
                     service=service,
                     start_lat=start_lat,
                     start_lng=start_lng,
@@ -286,8 +293,9 @@ def aggregate_estimates(
         "unavailable_services": unavailable_services,
         "current_surge": current_surge(),
         # Narx nega shunday — talab sababi (pik / ob-havo) va ob-havo holati
+        # MUHIM: Toshkent soati bo'yicha (server UTC bo'lsa 5 soat farq qilardi)
         "surge_reason": _surge_reason(
-            datetime.now().hour, datetime.now().weekday(), wx_reason
+            tashkent_now().hour, tashkent_now().weekday(), wx_reason
         ),
         "weather": {
             "boost": wx_boost,

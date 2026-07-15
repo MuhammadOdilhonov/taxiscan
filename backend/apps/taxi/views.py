@@ -15,8 +15,8 @@ from .serializers import (
 from . import services as taxi_services
 from . import routing as taxi_routing
 from . import demand as taxi_demand
-from datetime import datetime, timedelta
-from .providers.formula import calculate_price, current_surge
+from datetime import timedelta
+from .providers.formula import calculate_price, current_surge, tashkent_now
 
 
 class TaxiServiceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -191,7 +191,8 @@ class LivePricesView(APIView):
         if tier:
             services = services.filter(tier=tier)
 
-        now = datetime.now()
+        # Toshkent soati — server UTC bo'lsa datetime.now() 5 soat adashardi
+        now = tashkent_now()
         prev_minute = now - timedelta(minutes=1)
         # Bir minut oldingi narxni hisoblash uchun "soat" o'zgarmagan deb hisoblaymiz
         # (rare edge case: soat o'tib ketganda kichik sakrash bo'lishi mumkin, bu ham realistik)

@@ -115,6 +115,13 @@ class PriceEstimate(models.Model):
     price_uzs = models.PositiveIntegerField("Narx (so'm)")
     surge = models.FloatField("Surge", default=1.0)
 
+    # Bitta foydalanuvchi qidiruvi ~20 ta yozuv yaratadi (har brendga bittadan).
+    # search_id ularni bitta qidiruvga bog'laydi — "nechta odam qidiryapti"
+    # statistikasi yozuvlar sonini emas, UNIKAL qidiruvlarni sanashi uchun.
+    # tick_stats/seed kabi sun'iy yozuvlarda NULL qoladi va qidiruv sanalmaydi.
+    search_id = models.UUIDField(
+        "Qidiruv ID", null=True, blank=True, db_index=True,
+    )
     region = models.ForeignKey(
         Region, on_delete=models.SET_NULL, null=True, blank=True
     )

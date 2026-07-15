@@ -21,12 +21,19 @@ WINDOW_LABEL = "so'nggi 7 kun"
 
 
 def _region_stats(since):
-    """Rayon -> (qidiruvlar soni, o'rtacha narx) — real PriceEstimate'dan."""
+    """Rayon -> (qidiruvlar soni, o'rtacha narx) — real PriceEstimate'dan.
+
+    MUHIM: bitta qidiruv har brend uchun alohida yozuv yaratadi (~20 ta),
+    shuning uchun yozuvlar sonini emas, UNIKAL search_id'larni sanaymiz —
+    aks holda 1 kishi qidirsa "20 ta qidiruv" bo'lib ko'rinardi.
+    Count(distinct) NULL'larni sanamaydi, shu sabab tick_stats/seed'ning
+    sun'iy yozuvlari (search_id=NULL) qidiruvga qo'shilmaydi.
+    """
     rows = (
         PriceEstimate.objects
         .filter(created_at__gte=since, region__isnull=False)
         .values("region_id")
-        .annotate(n=Count("id"), avg=Avg("price_uzs"))
+        .annotate(n=Count("search_id", distinct=True), avg=Avg("price_uzs"))
     )
     return {r["region_id"]: (r["n"], int(r["avg"] or 0)) for r in rows}
 
@@ -48,7 +55,9 @@ def build_overview(now=None):
     now = now or timezone.now()
     since = now - timedelta(days=WINDOW_DAYS)
     stats = _region_stats(since)
-    surge = current_surge(hour=now.hour)
+    # timezone.now() UTC qaytaradi — surge uchun Toshkent soati kerak
+    local = timezone.localtime(now)
+    surge = current_surge(hour=local.hour, weekday=local.weekday())
 
     entries = []
     for r in Region.objects.filter(is_active=True):
@@ -119,7 +128,12 @@ def system_totals(now=None):
     now = now or timezone.now()
     since = now - timedelta(days=WINDOW_DAYS)
     return {
-        "searches": PriceEstimate.objects.filter(created_at__gte=since).count(),
+        # Unikal qidiruvlar (yozuvlar emas) — 1 qidiruv ~20 yozuv yaratadi
+        "searches": (
+            PriceEstimate.objects
+            .filter(created_at__gte=since, search_id__isnull=False)
+            .values("search_id").distinct().count()
+        ),
         "drivers": User.objects.filter(role="driver").count(),
         "passengers": User.objects.filter(role="passenger").count(),
         "regions": Region.objects.filter(is_active=True).count(),
