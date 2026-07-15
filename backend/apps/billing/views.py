@@ -6,7 +6,16 @@ from django.utils import timezone
 from datetime import timedelta
 import uuid
 
-from .models import Subscription, SubscriptionStatus, Transaction, TransactionStatus, Card
+from .models import (
+    Subscription,
+    SubscriptionStatus,
+    Transaction,
+    TransactionStatus,
+    PaymeState,
+    Card,
+    subscription_price_uzs,
+)
+from .payme import checkout_url
 from .serializers import (
     SubscriptionSerializer,
     TransactionSerializer,
@@ -81,8 +90,13 @@ class AddCardView(APIView):
         return Response(CardSerializer(card).data, status=status.HTTP_201_CREATED)
 
 
-class SubscribeView(APIView):
-    """Obunani 30 kunga uzaytirish — kartadan 1$ olib qolish."""
+class PaymeCheckoutView(APIView):
+    """Obuna to'lovi uchun Payme checkout havolasini yaratish.
+
+    Karta ilovada kiritilmaydi — foydalanuvchi Payme oynasida to'laydi,
+    Payme webhook orqali (PerformTransaction) obuna avtomatik uzayadi.
+    Narx rolga bog'liq: yo'lovchi 9 999 so'm, haydovchi 49 999 so'm.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -90,39 +104,55 @@ class SubscribeView(APIView):
             user=request.user,
             defaults={"expires_at": timezone.now() + timedelta(days=7)},
         )
-        card = Card.objects.filter(user=request.user, is_default=True).first()
 
-        if not card:
-            return Response(
-                {"detail": "Avval karta qo'shing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Promo-kod chegirmasi (bo'lsa) — bir martalik, keyin nollanadi
-        base_usd, base_uzs = 1.00, 12500
+        # Promo-kod chegirmasi (bo'lsa) — bir martalik, to'lov o'tgach nollanadi
+        base_uzs = subscription_price_uzs(request.user)
         disc = sub.discount_percent or 0
-        amount_usd = round(base_usd * (100 - disc) / 100, 2)
-        amount_uzs = int(base_uzs * (100 - disc) / 100)
+        amount_uzs = max(1, int(base_uzs * (100 - disc) / 100))
         desc = "TaxiNarx oylik obuna" + (f" ({disc}% promo chegirma)" if disc else "")
 
-        txn = Transaction.objects.create(
+        # Hali to'lanmagan eski checkout bo'lsa — qayta ishlatamiz (dublikat bo'lmasin)
+        txn = Transaction.objects.filter(
             user=request.user,
-            subscription=sub,
-            amount_usd=amount_usd,
-            amount_uzs=amount_uzs,
-            status=TransactionStatus.SUCCESS,
-            card_last4=card.card_last4,
-            description=desc,
-            external_id=f"txn_{uuid.uuid4().hex[:16]}",
-        )
-        sub.extend(days=30)
-        if disc:
-            sub.discount_percent = 0  # chegirma ishlatildi
-            sub.save(update_fields=["discount_percent"])
+            status=TransactionStatus.PENDING,
+            payme_id="",
+        ).first()
+        if txn:
+            txn.amount_uzs = amount_uzs
+            txn.description = desc
+            txn.subscription = sub
+            txn.save(update_fields=["amount_uzs", "description", "subscription"])
+        else:
+            txn = Transaction.objects.create(
+                user=request.user,
+                subscription=sub,
+                amount_usd=0,
+                amount_uzs=amount_uzs,
+                status=TransactionStatus.PENDING,
+                description=desc,
+            )
 
         return Response({
-            "subscription": SubscriptionSerializer(sub).data,
-            "transaction": TransactionSerializer(txn).data,
+            "order_id": txn.id,
+            "amount_uzs": amount_uzs,
+            "checkout_url": checkout_url(txn.id, amount_uzs),
+        })
+
+
+class PaymeOrderStatusView(APIView):
+    """Mobil ilova to'lov oynasi ochiq turganda holatni so'rab turadi."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        order_id = request.query_params.get("order_id")
+        try:
+            txn = Transaction.objects.get(id=int(order_id), user=request.user)
+        except (Transaction.DoesNotExist, TypeError, ValueError):
+            return Response({"detail": "Buyurtma topilmadi"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            "order_id": txn.id,
+            "status": txn.status,
+            "paid": txn.payme_state == PaymeState.PERFORMED,
         })
 
 

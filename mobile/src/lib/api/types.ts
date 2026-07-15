@@ -152,8 +152,15 @@ export interface Subscription {
   expires_at: string;
   auto_renew: boolean;
   monthly_price_usd: number;
+  monthly_price_uzs: number;
   last_charge_at: string | null;
   next_charge_at: string | null;
+}
+
+export interface PaymeCheckout {
+  order_id: number;
+  amount_uzs: number;
+  checkout_url: string;
 }
 
 export interface Card {

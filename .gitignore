@@ -26,3 +26,6 @@ media/
 # Boshqa
 *.log
 .DS_Store
+
+# Payme hujjatlari (lokal ma'lumotnoma, video katta)
+popka_fayl_pyme/

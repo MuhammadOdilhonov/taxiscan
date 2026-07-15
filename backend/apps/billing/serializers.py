@@ -6,12 +6,14 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     is_active = serializers.BooleanField(read_only=True)
     days_left = serializers.IntegerField(read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    monthly_price_uzs = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Subscription
         fields = (
             "id", "status", "status_display", "is_active", "days_left",
-            "started_at", "expires_at", "auto_renew", "monthly_price_usd",
+            "started_at", "expires_at", "auto_renew",
+            "monthly_price_usd", "monthly_price_uzs",
             "last_charge_at", "next_charge_at", "discount_percent",
         )
         read_only_fields = ("id", "started_at", "monthly_price_usd")

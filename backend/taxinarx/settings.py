@@ -208,9 +208,19 @@ YANDEX_GEOCODER_KEY = os.environ.get("YANDEX_GEOCODER_KEY", "")
 # Yandex til kodi: ru_RU, en_US, tr_TR, uk_UA (uz_UZ hozircha qo'llab-quvvatlanmaydi)
 YANDEX_GEOCODER_LANG = os.environ.get("YANDEX_GEOCODER_LANG", "ru_RU")
 
+# Payme Merchant API (kassa ma'lumotlari — business.payme.uz kabinetidan)
+PAYME_MERCHANT_ID = os.environ.get("PAYME_MERCHANT_ID", "")
+PAYME_KEY = os.environ.get("PAYME_KEY", "")
+PAYME_TEST_KEY = os.environ.get("PAYME_TEST_KEY", "")
+PAYME_CHECKOUT_URL = os.environ.get("PAYME_CHECKOUT_URL", "https://checkout.paycom.uz")
+
 # TaxiNarx project specific
 TAXINARX = {
-    "SUBSCRIPTION_PRICE_USD": 1.00,
+    # Oylik obuna narxi rolga qarab (so'mda)
+    "SUBSCRIPTION_PRICE_UZS": {
+        "passenger": 9_999,
+        "driver": 49_999,
+    },
     "SUBSCRIPTION_PERIOD_DAYS": 30,
     "FREE_TRIAL_DAYS": 7,
     "DEFAULT_CITY": "Tashkent",

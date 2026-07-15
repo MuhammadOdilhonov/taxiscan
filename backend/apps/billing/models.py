@@ -4,6 +4,16 @@ from django.utils import timezone
 from datetime import timedelta
 
 
+def subscription_price_uzs(user) -> int:
+    """Foydalanuvchi roliga qarab oylik obuna narxi (so'mda).
+
+    Yo'lovchi — 9 999 so'm, haydovchi — 49 999 so'm (settings.TAXINARX'dan).
+    """
+    prices = settings.TAXINARX.get("SUBSCRIPTION_PRICE_UZS", {})
+    role = getattr(user, "role", "passenger")
+    return int(prices.get(role, prices.get("passenger", 9999)))
+
+
 class SubscriptionStatus(models.TextChoices):
     TRIAL = "trial", "Sinov muddati"
     ACTIVE = "active", "Faol"
@@ -12,7 +22,7 @@ class SubscriptionStatus(models.TextChoices):
 
 
 class Subscription(models.Model):
-    """Foydalanuvchi obunasi — oylik 1$."""
+    """Foydalanuvchi obunasi — oylik, narx rolga bog'liq (yo'lovchi/haydovchi)."""
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -50,6 +60,10 @@ class Subscription(models.Model):
         return self.expires_at > timezone.now()
 
     @property
+    def monthly_price_uzs(self) -> int:
+        return subscription_price_uzs(self.user)
+
+    @property
     def days_left(self):
         delta = self.expires_at - timezone.now()
         return max(0, delta.days)
@@ -70,8 +84,17 @@ class TransactionStatus(models.TextChoices):
     REFUNDED = "refunded", "Qaytarilgan"
 
 
+class PaymeState(models.IntegerChoices):
+    """Payme Merchant API tranzaksiya holatlari."""
+    INITIAL = 0, "Yaratilmagan"
+    CREATED = 1, "Yaratilgan"
+    PERFORMED = 2, "To'langan"
+    CANCELLED = -1, "Bekor qilingan"
+    CANCELLED_AFTER_PERFORM = -2, "To'langach qaytarilgan"
+
+
 class Transaction(models.Model):
-    """Karta orqali olib qolingan / urinilgan to'lov yozuvi."""
+    """To'lov yozuvi (order). Payme Merchant API orqali to'lanadi."""
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -98,6 +121,16 @@ class Transaction(models.Model):
     error_message = models.CharField("Xato xabari", max_length=255, blank=True)
     external_id = models.CharField("Tashqi ID", max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Payme Merchant API maydonlari
+    payme_id = models.CharField("Payme tranzaksiya ID", max_length=64, blank=True, db_index=True)
+    payme_state = models.SmallIntegerField(
+        "Payme holati", choices=PaymeState.choices, default=PaymeState.INITIAL
+    )
+    payme_create_time = models.BigIntegerField("Payme yaratilgan (ms)", default=0)
+    payme_perform_time = models.BigIntegerField("Payme to'langan (ms)", default=0)
+    payme_cancel_time = models.BigIntegerField("Payme bekor qilingan (ms)", default=0)
+    cancel_reason = models.SmallIntegerField("Bekor qilish sababi", null=True, blank=True)
 
     class Meta:
         verbose_name = "Tranzaksiya"
