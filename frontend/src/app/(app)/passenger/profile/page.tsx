@@ -4,31 +4,28 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/store/auth";
 import { apiGet } from "@/lib/api/client";
-import type { Subscription, Transaction, Card } from "@/lib/api/types";
+import type { Subscription, Transaction } from "@/lib/api/types";
 import { Spinner } from "@/components/ui/Spinner";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { formatUzs, formatDateTime } from "@/lib/format";
-import { CreditCard, Crown, Phone, ArrowRight, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Crown, Phone, ArrowRight, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { PromoRedeemCard } from "@/components/PromoRedeemCard";
 
 export default function PassengerProfile() {
   const { user } = useAuth();
   const [sub, setSub] = useState<Subscription | null>(null);
-  const [cards, setCards] = useState<Card[]>([]);
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       apiGet<Subscription>("/billing/subscription/"),
-      apiGet<{ results: Card[] }>("/billing/cards/"),
       apiGet<{ results: Transaction[] }>("/billing/transactions/"),
     ])
-      .then(([s, c, t]) => {
+      .then(([s, t]) => {
         setSub(s);
-        setCards(c.results || []);
         setTxns(t.results || []);
       })
       .finally(() => setLoading(false));
@@ -80,42 +77,6 @@ export default function PassengerProfile() {
 
       <div className="md:col-span-2 space-y-4">
         <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-ink flex items-center gap-2">
-              <CreditCard size={18} /> Kartalarim
-            </h3>
-            <Link href="/billing" className="text-sm text-brand-700 font-semibold hover:underline">
-              Boshqarish
-            </Link>
-          </div>
-          {cards.length === 0 ? (
-            <div className="text-center py-8 text-ink-muted text-sm">
-              <p>Hozircha karta ulanmagan</p>
-              <Link href="/billing" className="btn-outline mt-3 text-sm">Karta qo'shish</Link>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {cards.map((c) => (
-                <div key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-ink-bg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-ink text-white font-bold text-xs flex items-center justify-center uppercase">
-                      {c.card_type}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-ink text-sm">•••• {c.card_last4}</div>
-                      <div className="text-xs text-ink-muted">{c.holder_name}</div>
-                    </div>
-                  </div>
-                  {c.is_default && (
-                    <span className="badge bg-brand text-ink">Asosiy</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="card p-5">
           <h3 className="font-bold text-ink mb-4">Tranzaksiyalar</h3>
           {txns.length === 0 ? (
             <p className="text-sm text-ink-muted text-center py-6">Hech qanday tranzaksiya yo'q</p>
@@ -131,13 +92,12 @@ export default function PassengerProfile() {
                       <div>
                         <div className="font-semibold text-ink text-sm">{t.description}</div>
                         <div className="text-xs text-ink-muted">
-                          {formatDateTime(t.created_at)} • •••• {t.card_last4}
+                          {formatDateTime(t.created_at)} • {t.status_display}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-ink">${t.amount_usd}</div>
-                      <div className="text-xs text-ink-muted">{formatUzs(t.amount_uzs)}</div>
+                      <div className="font-bold text-ink">{formatUzs(t.amount_uzs)}</div>
                     </div>
                   </div>
                 );

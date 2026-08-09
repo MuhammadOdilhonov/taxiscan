@@ -44,7 +44,7 @@ export default function Home() {
 
             <div className="mt-6 flex items-center gap-6 text-sm text-ink-muted">
               <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> 7 kun bepul</span>
-              <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> Faqat 1$/oy</span>
+              <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> Oyiga 9 999 so'mdan</span>
               <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> Istalgan vaqt bekor</span>
             </div>
           </div>
