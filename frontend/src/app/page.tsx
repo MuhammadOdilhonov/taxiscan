@@ -43,7 +43,7 @@ export default function Home() {
             </div>
 
             <div className="mt-6 flex items-center gap-6 text-sm text-ink-muted">
-              <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> 7 kun bepul</span>
+              <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> 1 kun bepul</span>
               <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> Oyiga 9 999 so'mdan</span>
               <span className="flex items-center gap-1.5"><Check size={16} className="text-brand-600" /> Istalgan vaqt bekor</span>
             </div>
@@ -105,7 +105,7 @@ export default function Home() {
       {/* CTA */}
       <section className="max-w-6xl mx-auto px-4 py-16">
         <div className="rounded-3xl bg-ink text-white p-10 md:p-14 text-center">
-          <h2 className="text-3xl md:text-4xl font-extrabold">Bugun boshlang — 7 kun bepul</h2>
+          <h2 className="text-3xl md:text-4xl font-extrabold">Bugun boshlang — 1 kun bepul</h2>
           <p className="mt-3 text-ink-line max-w-xl mx-auto">
             Karta ulang, 1$ test tranzaksiyani ko'ring va sinab boshlang. Yoqmasa, istalgan vaqt bekor qiling.
           </p>

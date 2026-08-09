@@ -222,6 +222,6 @@ TAXINARX = {
         "driver": 49_999,
     },
     "SUBSCRIPTION_PERIOD_DAYS": 30,
-    "FREE_TRIAL_DAYS": 7,
+    "FREE_TRIAL_DAYS": 1,
     "DEFAULT_CITY": "Tashkent",
 }

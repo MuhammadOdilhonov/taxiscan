@@ -14,6 +14,7 @@ from .models import (
     PaymeState,
     Card,
     subscription_price_uzs,
+    free_trial_days,
 )
 from .payme import checkout_url
 from .serializers import (
@@ -31,7 +32,7 @@ class MySubscriptionView(generics.RetrieveAPIView):
     def get_object(self):
         sub, _ = Subscription.objects.get_or_create(
             user=self.request.user,
-            defaults={"expires_at": timezone.now() + timedelta(days=7)},
+            defaults={"expires_at": timezone.now() + timedelta(days=free_trial_days())},
         )
         return sub
 
@@ -102,7 +103,7 @@ class PaymeCheckoutView(APIView):
     def post(self, request):
         sub, _ = Subscription.objects.get_or_create(
             user=request.user,
-            defaults={"expires_at": timezone.now() + timedelta(days=7)},
+            defaults={"expires_at": timezone.now() + timedelta(days=free_trial_days())},
         )
 
         # Promo-kod chegirmasi (bo'lsa) — bir martalik, to'lov o'tgach nollanadi
@@ -219,7 +220,7 @@ class RedeemPromoView(APIView):
 
         sub, _ = Subscription.objects.get_or_create(
             user=request.user,
-            defaults={"expires_at": timezone.now() + timedelta(days=7)},
+            defaults={"expires_at": timezone.now() + timedelta(days=free_trial_days())},
         )
 
         if promo.reward_type == "discount":

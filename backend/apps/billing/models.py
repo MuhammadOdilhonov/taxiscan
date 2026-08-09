@@ -1,7 +1,13 @@
+import math
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+
+
+def free_trial_days() -> int:
+    """Ro'yxatdan o'tgandagi bepul sinov muddati (kun)."""
+    return int(settings.TAXINARX.get("FREE_TRIAL_DAYS", 1))
 
 
 def subscription_price_uzs(user) -> int:
@@ -65,8 +71,12 @@ class Subscription(models.Model):
 
     @property
     def days_left(self):
-        delta = self.expires_at - timezone.now()
-        return max(0, delta.days)
+        # Yuqoriga yaxlitlanadi: 1 kunlik sinov butun kun davomida "1 kun" ko'rinadi
+        # (aks holda 23s 59m qolganda "0 kun" chiqib qolardi).
+        seconds = (self.expires_at - timezone.now()).total_seconds()
+        if seconds <= 0:
+            return 0
+        return math.ceil(seconds / 86400)
 
     def extend(self, days=30):
         base = max(self.expires_at, timezone.now())

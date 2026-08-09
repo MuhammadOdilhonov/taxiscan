@@ -4,7 +4,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from datetime import timedelta
-from apps.billing.models import Subscription, SubscriptionStatus
+from apps.billing.models import Subscription, SubscriptionStatus, free_trial_days
 from .models import Notification
 
 User = get_user_model()
@@ -42,11 +42,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
 
-        # 7 kunlik bepul sinov muddati
+        # Bepul sinov muddati (settings.TAXINARX["FREE_TRIAL_DAYS"])
         Subscription.objects.create(
             user=user,
             status=SubscriptionStatus.TRIAL,
-            expires_at=timezone.now() + timedelta(days=7),
+            expires_at=timezone.now() + timedelta(days=free_trial_days()),
         )
         return user
 
