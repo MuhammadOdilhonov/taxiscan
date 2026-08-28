@@ -129,8 +129,24 @@ class PaymeWebhookView(APIView):
             raise PaymeError(ERR_TXN_NOT_FOUND, "Tranzaksiya topilmadi")
 
     @staticmethod
-    def _txn_result(txn: Transaction) -> dict:
+    def _get_detail(txn: Transaction) -> dict:
+        title = f"TaxiScan obunasi ({txn.amount_uzs} so'm)"
         return {
+            "receipt_type": 0,
+            "items": [
+                {
+                    "title": title,
+                    "price": txn.amount_uzs * 100,
+                    "count": 1,
+                    "code": "10901001001000000",
+                    "package_code": "1236069",
+                    "vat_percent": 0,
+                }
+            ],
+        }
+
+    def _txn_result(self, txn: Transaction) -> dict:
+        res = {
             "create_time": txn.payme_create_time,
             "perform_time": txn.payme_perform_time,
             "cancel_time": txn.payme_cancel_time,
@@ -138,6 +154,9 @@ class PaymeWebhookView(APIView):
             "state": txn.payme_state,
             "reason": txn.cancel_reason,
         }
+        if txn.payme_state in (PaymeState.CREATED, PaymeState.PERFORMED):
+            res["detail"] = self._get_detail(txn)
+        return res
 
     # ---------- JSON-RPC metodlar ----------
 
@@ -145,7 +164,10 @@ class PaymeWebhookView(APIView):
         txn = self._get_order(params)
         if txn.payme_state == PaymeState.PERFORMED:
             raise PaymeError(ERR_ORDER_NOT_FOUND, "Buyurtma allaqachon to'langan", "order_id")
-        return {"allow": True}
+        return {
+            "allow": True,
+            "detail": self._get_detail(txn),
+        }
 
     def _create(self, params):
         payme_id = params.get("id")

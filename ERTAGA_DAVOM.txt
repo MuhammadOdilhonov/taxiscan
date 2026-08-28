@@ -1,0 +1,126 @@
+========================================================================
+ TAXINARX — PAYME: ERTAGA DAVOM ETTIRISH UCHUN
+ Sana: 2026-08-09 (kechqurun)
+ Loyiha: C:\Users\user\Desktop\Muhammad\taxsi_narxlar
+ Bu faylni Claude'ga ko'rsating — qayerda qolganini biladi.
+ Bog'liq: PAYME_KEYINGI_QADAM.txt (batafsil texnik holat)
+========================================================================
+
+------------------------------------------------------------------------
+BUGUN QILINGAN ISHLAR (2026-08-09) — TAYYOR, QAYTA QILISH SHART EMAS
+------------------------------------------------------------------------
+[x] WEB FRONTEND Payme checkout oqimiga ULANDI (avval ulanmagan edi —
+    eski soxta oqim /billing/subscribe/ ni chaqirib checkout_url'ni
+    ochmasdan yolg'ondan "obuna uzaytirildi" derdi).
+    - frontend/src/app/(app)/billing/page.tsx qayta yozildi:
+      POST /billing/payme/checkout/ -> window.open(checkout_url) ->
+      "To'lov kutilmoqda" modali /billing/payme/status/ ni 3s polling ->
+      paid=true da obuna yangilanadi (mobil bilan bir xil).
+    - Narx so'mda ko'rsatiladi (monthly_price_uzs).
+    - Eski soxta KARTA UI o'chirildi (/billing + passenger/driver profil).
+    - Landing narx matni to'g'rilandi.
+    - types.ts: PaymeCheckout + monthly_price_uzs/discount_percent.
+
+[x] MOBIL (Expo/RN) — allaqachon to'liq ishlaydi (BillingScreen WebView +
+    3s polling). TEGILMADI.
+
+[x] BEPUL SINOV 7 kun -> 1 kun:
+    - settings.TAXINARX["FREE_TRIAL_DAYS"] = 1 (markazlashtirildi).
+    - Ro'yxatdan o'tish + billing fallback'lar shu qiymatni ishlatadi.
+    - days_left endi CEIL bilan hisoblanadi (1 kunlik sinov kun bo'yi
+      "1 kun" ko'rinadi; avvalgi "6 kun" xatosi tuzaldi).
+    - Landing "7 kun bepul" -> "1 kun bepul".
+    - set_trial_1day management command yaratildi.
+
+[x] LOKAL TEST O'TDI: backend e2e (checkout -> Create -> Perform ->
+    status paid -> obuna +30 kun), 6/6 JSON-RPC metod OK. Frontend
+    `npx tsc --noEmit` 0 xato. `manage.py check` 0 muammo.
+
+[x] GIT: commit 913ba25 push qilindi (origin/main).
+
+[x] SERVERGA DEPLOY QILINDI (89.249.60.118, ~/logfree/taxiscan):
+    - git pull + npm run build (build OK) + pm2 restart (backend+frontend
+      online).
+    - set_trial_1day --apply ishga tushirildi: 2 ta trial obuna 1 kunga
+      qisqardi (#1 tugadi, #2 = +998332353523 endi 1 kun qoldi).
+    - backend/.env ga PAYME_MERCHANT_ID=6a5ba195292f4a26eb200efe qo'shildi
+      (avval YO'Q edi) + pm2 restart taxiscan-backend. TEST_KEY oldindan bor.
+
+[x] SERVER TARMOG'I TEKSHIRILDI:
+    - ufw 443 ochiq, nginx 0.0.0.0:443 da tinglayapti (TAYYOR).
+    - Server NAT ortida: public IP 89.249.60.118 = Kerio/gateway'da,
+      serverning ICHKI IP = 10.10.10.235. SSH 53523 shu orqali o'tadi.
+
+[x] PAYME KABINET SOZLAMALARI TEKSHIRILDI — HAMMASI TO'G'RI:
+    - Реквизит: order_id, validatsiya ^[0-9]+$
+    - Endpoint URL: https://backend.taxiscan.app/api/v1/billing/payme/
+    - ID кассы: 6a5ba195292f4a26eb200efe (.env bilan mos)
+    - Тип: Web-касса, min 1 / max 999999999
+    - KASSA HOLATI: "Неактивна" (FAOL EMAS) <-- muhim, pastga qarang.
+
+------------------------------------------------------------------------
+HOZIRGI ASOSIY TO'SIQ
+------------------------------------------------------------------------
+1) 443-PORT tashqaridan YOPIQ (tekshirildi: https://backend.taxiscan.app
+   ulanmaydi). Payme sizning serveringizga so'rov yubora olmaydi.
+   -> Kerio/gateway'da 443 forward qo'shilishi kerak (yoki Cloudflare Tunnel).
+
+2) KASSA "Неактивна" — shuning uchun checkout.paycom.uz "Поставщик не
+   найден или заблокирован" deyapti. Bu 443 muammosi EMAS; kassa jonli
+   (faol) bo'lishi kerak. Jonli qilishdan oldin sandbox test o'tishi shart.
+
+------------------------------------------------------------------------
+!!! XAVFSIZLIK — BIRINCHI NAVBATDA QILINSIN !!!
+------------------------------------------------------------------------
+Payme kalitlari (asosiy + test) chatga ochiq matnda tushib ketdi
+(2026-08-09 suhbatida). Ular MAXFIY parol — asosiy kalitni bilgan odam
+soxta "to'lov o'tdi" webhook yuborib firibgarlik qilishi mumkin.
+=> merchant.payme.uz -> kassa -> "Инструменты разработчика" -> kalitni
+   QAYTA GENERATSIYA qiling (kamida asosiy kalit, jonli rejimga o'tishdan
+   oldin albatta). Yangi kalitni FAQAT serverdagi backend/.env ga yozing,
+   hech qayerga (chatga ham) qo'ymang.
+
+------------------------------------------------------------------------
+ERTAGA QILINADIGAN ISHLAR (tartib bilan)
+------------------------------------------------------------------------
+[ ] 0. (Xavfsizlik) Payme kalitlarini qayta generatsiya qilish ->
+       yangisini server backend/.env ga yozish -> pm2 restart taxiscan-backend.
+       (.env tahrirlash + restart buyrug'ini Claude tayyorlab beradi.)
+
+[ ] 1. 443 ni ochish. Ikki yo'ldan biri:
+       A) KERIO Control (https://<kerio-ip>:4081) -> Traffic Rules ->
+          yangi qoida "TaxiScan HTTPS":
+            Source: Internet interfaces
+            Destination: Firewall (89.249.60.118)
+            Service: HTTPS (TCP 443)
+            Action: Allow
+            Translation -> Map traffic to host: 10.10.10.235, port 443
+          (hozirgi SSH 53523 qoidasining o'xshashi; PFX SHART EMAS —
+           nginx SSL'ni o'zi ushlaydi)
+       B) CLOUDFLARE TUNNEL (Kerio'ga tegmasdan): serverda cloudflared,
+          chiquvchi tunnel, port ochish shart emas; backend.taxiscan.app
+          DNS'ini Cloudflare'ga o'tkazish kerak.
+       -> Ochilgach Claude tashqaridan https://backend.taxiscan.app ni
+          tekshiradi (ochilishi kerak).
+
+[ ] 2. SANDBOX TEST — test.paycom.uz:
+       endpoint URL + merchant id + TEST kalit kiritiladi, barcha
+       stsenariylar o'tkaziladi (webhook 6 metod; lokalda 24/24 o'tgan).
+
+[ ] 3. Kassani JONLI rejimga / moderatsiyaga berish (kabinetда). Tasdiqlangach:
+       - PROD kalit (yangi generatsiya qilingani) backend/.env dagi
+         PAYME_KEY= ga yoziladi (lokal ham, server ham), pm2 restart.
+       - checkout.paycom.uz ochiladi -> haqiqiy to'lov sinovi.
+
+------------------------------------------------------------------------
+FOYDALI MA'LUMOTLAR
+------------------------------------------------------------------------
+- Server SSH: ssh -p 53523 muhammad@89.249.60.118 (parol; Claude'da kalit YO'Q)
+- Loyiha serverda: ~/logfree/taxiscan (backend pm2 "taxiscan-backend" :8000,
+  frontend pm2 "taxiscan-frontend" :3000)
+- Serverning ichki IP: 10.10.10.235 | public/gateway: 89.249.60.118
+- Kabinet: https://merchant.payme.uz | Sandbox: https://test.paycom.uz
+- Endpoint: https://backend.taxiscan.app/api/v1/billing/payme/
+- Narx: yo'lovchi 9 999 so'm/oy, haydovchi 49 999 so'm/oy; sinov 1 kun.
+- Lokal test user: +998901112233 / test12345
+========================================================================
