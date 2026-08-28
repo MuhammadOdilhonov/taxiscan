@@ -138,8 +138,9 @@ class PaymeWebhookView(APIView):
                     "title": title,
                     "price": txn.amount_uzs * 100,
                     "count": 1,
-                    "code": "10901001001000000",
+                    "code": "10802001001000000",
                     "package_code": "1236069",
+                    "units": "1236069",
                     "vat_percent": 0,
                 }
             ],
