@@ -54,7 +54,7 @@ export function ProfileScreen() {
 
   return (
     <Screen>
-      <Header title="Profil" />
+      <Header title="Profil" onBack={() => router.back()} />
 
       <Card padded style={{ alignItems: "center", paddingVertical: 24 }}>
         {user?.avatar_url ? (
@@ -160,7 +160,7 @@ export function ProfileScreen() {
       </Pressable>
 
       <Text style={{ color: colors.inkMuted, fontSize: 11, textAlign: "center", marginTop: 4 }}>
-        TaxiNarx · Toshkent taksilarini taqqoslash
+        TaxiScan · Toshkent taksilarini taqqoslash
       </Text>
 
       <EditProfileModal

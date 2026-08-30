@@ -1,17 +1,19 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/theme";
 
-export function Logo({ size = 30 }: { size?: number }) {
+export function Logo({ size = 32 }: { size?: number }) {
   const { colors } = useTheme();
   return (
     <View style={styles.logoRow}>
-      <View style={[styles.logoMark, { width: size, height: size, backgroundColor: colors.brand }]}>
-        <Ionicons name="car-sport" size={size * 0.58} color="#0F1216" />
-      </View>
+      <Image
+        source={require("@/assets/logo.png")}
+        style={{ width: size, height: size, borderRadius: 6 }}
+        resizeMode="contain"
+      />
       <Text style={[styles.logoText, { color: colors.ink }]}>
-        Taxi<Text style={{ color: colors.brandDark }}>Narx</Text>
+        Taxi<Text style={{ color: colors.brandDark }}>Scan</Text>
       </Text>
     </View>
   );
@@ -21,16 +23,36 @@ export function Header({
   title,
   subtitle,
   right,
+  showLogo = true,
+  showBack,
+  onBack,
 }: {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
+  showLogo?: boolean;
+  showBack?: boolean;
+  onBack?: () => void;
 }) {
   const { colors } = useTheme();
   return (
     <View style={styles.header}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {showBack || onBack ? (
+            <Pressable onPress={onBack} hitSlop={12} style={{ marginRight: 4 }}>
+              <Ionicons name="arrow-back" size={24} color={colors.ink} />
+            </Pressable>
+          ) : null}
+          {showLogo && !showBack && !onBack ? (
+            <Image
+              source={require("@/assets/logo.png")}
+              style={{ width: 28, height: 28, borderRadius: 6 }}
+              resizeMode="contain"
+            />
+          ) : null}
+          <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
+        </View>
         {subtitle ? (
           <Text style={[styles.subtitle, { color: colors.inkMuted }]}>{subtitle}</Text>
         ) : null}

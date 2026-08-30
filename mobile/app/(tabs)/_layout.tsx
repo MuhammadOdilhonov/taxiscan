@@ -49,20 +49,7 @@ export default function TabsLayout() {
         tabBarItemStyle: { paddingTop: 10, paddingBottom: 10, justifyContent: "center" },
         // iPhone uslubidagi suzuvchi navbar — pastdan uzilgan, chetlardan qochgan
         tabBarStyle: {
-          position: "absolute",
-          left: 16,
-          right: 16,
-          bottom: insets.bottom > 0 ? insets.bottom + 4 : 14,
-          height: 64,
-          borderRadius: 22,
-          backgroundColor: barBg,
-          borderTopWidth: 0,
-          paddingHorizontal: 6,
-          elevation: 12,
-          shadowColor: "#000",
-          shadowOpacity: 0.25,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 6 },
+          display: "none",
         },
         tabBarHideOnKeyboard: Platform.OS === "android",
       }}

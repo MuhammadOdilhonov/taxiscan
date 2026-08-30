@@ -7,8 +7,8 @@ const TASHKENT = { lat: 41.311, lng: 69.279 };
 export interface MapMarker {
   lat: number;
   lng: number;
-  type?: "start" | "end";
-  /** Pin markazida ko'rsatiladigan harf (masalan "A" / "B") */
+  type?: "start" | "end" | "stop";
+  /** Pin markazida ko'rsatiladigan harf (masalan "A" / "B" / "C") */
   label?: string;
 }
 
@@ -22,7 +22,7 @@ export interface MapRoute {
 export interface MapZone {
   id: number;
   name?: string;
-  rings: [number, number][][]; // har bir ring [lat,lng] nuqtalar
+  rings: [number, number][][];
   highlighted?: boolean;
   color?: string;
 }
@@ -40,13 +40,9 @@ interface Props {
   markers?: MapMarker[];
   routes?: MapRoute[];
   zones?: MapZone[];
-  /** zones rejimida "siz shu yerdasiz" nuqtasi — atrofga yaqinlashtiriladi */
   userLoc?: { lat: number; lng: number } | null;
-  /** picker: xarita to'xtaganda markaz koordinatasi */
   onCenterChange?: (lat: number, lng: number) => void;
-  /** route: bir yo'l chizig'i bosilganda */
   onRoutePress?: (id: number) => void;
-  /** zones: bir tuman bosilganda */
   onZonePress?: (id: number) => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -62,22 +58,23 @@ function buildHtml(props: Props): string {
   const routesJson = JSON.stringify(routes);
   const zonesJson = JSON.stringify(zones);
 
-  // Markaziy pin (faqat picker rejimida) — Yandex uslubida.
-  // Kunduzi: qora pin. Tunda: o'rtasi oq, cheti sariq.
   const pinOuter = isDark ? "#FFCC00" : "#0F1216";
   const pinInner = isDark ? "#FFFFFF" : "#FFCC00";
   const pinCore = isDark ? "#FFCC00" : "#0F1216";
-  const pinHtml =
-    mode === "picker"
-      ? `<div id="pin">
-           <svg width="40" height="52" viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg">
-             <path d="M20 0C9 0 0 9 0 20c0 14 20 32 20 32s20-18 20-32C40 9 31 0 20 0z" fill="${pinOuter}"/>
-             <circle cx="20" cy="20" r="13" fill="${pinInner}"/>
-             <circle cx="20" cy="20" r="5" fill="${pinCore}"/>
-           </svg>
-           <div id="pin-shadow"></div>
-         </div>`
-      : "";
+
+  // Markaziy statik poydevor belgisi — faqat markerlar va yo'l chizig'i bo'lmaganda ko'rinadi (dublikat pinni oldini olish)
+  const showCenterPin = mode === "picker" && markers.length === 0 && routes.length === 0;
+
+  const pinHtml = showCenterPin
+    ? `<div id="pin">
+         <svg width="42" height="54" viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg">
+           <path d="M20 0C9 0 0 9 0 20c0 14 20 32 20 32s20-18 20-32C40 9 31 0 20 0z" fill="${pinOuter}"/>
+           <circle cx="20" cy="20" r="13" fill="${pinInner}"/>
+           <circle cx="20" cy="20" r="5" fill="${pinCore}"/>
+         </svg>
+         <div id="pin-shadow"></div>
+       </div>`
+    : "";
 
   return `<!DOCTYPE html>
 <html>
@@ -87,27 +84,28 @@ function buildHtml(props: Props): string {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  html, body, #map { height: 100%; margin: 0; padding: 0; background: ${isDark ? "#0A0D11" : "#e8eaed"}; }
-  .leaflet-control-attribution { font-size: 9px; }
+  html, body, #map { height: 100%; margin: 0; padding: 0; background: ${isDark ? "#0A0D11" : "#e8eaed"}; touch-action: auto; }
+  .leaflet-control-attribution { display: none; }
+  .leaflet-container { background: ${isDark ? "#0A0D11" : "#e8eaed"}; }
   #pin {
     position: fixed; left: 50%; top: 50%;
     transform: translate(-50%, -100%);
     margin-top: 6px; z-index: 1000; pointer-events: none;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,.35));
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.5));
   }
   #pin-shadow {
-    position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%);
-    width: 14px; height: 5px; background: rgba(0,0,0,.25); border-radius: 50%;
+    position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%);
+    width: 16px; height: 6px; background: rgba(0,0,0,.35); border-radius: 50%;
   }
   .tn-dot {
     border-radius: 50%; border: 3px solid #fff;
-    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+    box-shadow: 0 2px 8px rgba(0,0,0,.5);
   }
   .tn-zone-label {
     background: transparent; border: 0; box-shadow: none;
     color: ${isDark ? "#F3F5F7" : "#0F1216"};
     font-weight: 800; font-size: 11px;
-    text-shadow: 0 1px 3px ${isDark ? "rgba(0,0,0,.8)" : "rgba(255,255,255,.9)"};
+    text-shadow: 0 1px 3px ${isDark ? "rgba(0,0,0,.9)" : "rgba(255,255,255,.9)"};
   }
   .tn-zone-label::before { display: none; }
 </style>
@@ -117,10 +115,9 @@ function buildHtml(props: Props): string {
 ${pinHtml}
 <script>
   var post = function(o){ if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(o)); };
-  var map = L.map('map', { zoomControl: ${mode === "picker" ? "false" : "true"}, attributionControl: true })
+  var map = L.map('map', { zoomControl: false, attributionControl: false, touchZoom: true, dragging: true })
             .setView([${c.lat}, ${c.lng}], ${zoom});
-  L.tileLayer('${tiles}', { subdomains: ['a','b','c','d'], maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
+  L.tileLayer('${tiles}', { subdomains: ['a','b','c','d'], maxZoom: 19 }).addTo(map);
 
   var MODE = '${mode}';
   var markers = ${markersJson};
@@ -134,15 +131,53 @@ ${pinHtml}
       html: '<div class="tn-dot" style="width:'+size+'px;height:'+size+'px;background:'+color+'"></div>' });
   }
 
-  // Manzil pin'i — kartaga tushadigan klassik pin, o'rtasida harf (A/B)
+  // Yandex uslubidagi unikal manzil pini (A, B, C...)
   function makePin(fill, letter){
-    var w = 34, h = 44;
-    var svg = '<svg width="'+w+'" height="'+h+'" viewBox="0 0 34 44" xmlns="http://www.w3.org/2000/svg">'
-      + '<path d="M17 0C7.6 0 0 7.6 0 17c0 12 17 27 17 27s17-15 17-27C34 7.6 26.4 0 17 0z" fill="'+fill+'"/>'
-      + '<circle cx="17" cy="17" r="11" fill="#FFFFFF"/>'
-      + '<text x="17" y="22" text-anchor="middle" font-size="15" font-weight="bold" fill="'+fill+'" font-family="system-ui,Arial">'+(letter||'')+'</text>'
+    var w = 40, h = 50;
+    var svg = '<svg width="'+w+'" height="'+h+'" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg">'
+      + '<circle cx="20" cy="20" r="19" fill="rgba(255,204,0,0.25)"/>'
+      + '<path d="M20 4C11.2 4 4 11.2 4 20c0 11 16 26 16 26s16-15 16-26C36 11.2 28.8 4 20 4z" fill="'+fill+'"/>'
+      + '<circle cx="20" cy="20" r="12" fill="#FFFFFF"/>'
+      + '<text x="20" y="25" text-anchor="middle" font-size="14" font-weight="900" fill="#0F1216" font-family="system-ui,Arial">'+(letter||'')+'</text>'
       + '</svg>';
     return L.divIcon({ className: 'tn-pin', iconSize: [w, h], iconAnchor: [w/2, h], html: svg });
+  }
+
+  // 1. Haqiqiy ko'cha geometriyasi yo'l chizig'ini (Polyline) chizish
+  var routeBounds = [];
+  if (routes && routes.length > 0) {
+    routes.forEach(function(rt){
+      if (!rt.coords || rt.coords.length < 2) return;
+      var isSel = rt.selected;
+      var line = L.polyline(rt.coords, {
+        color: rt.color || (isSel ? '#FFCC00' : '#7C8491'),
+        weight: isSel ? 6 : 4,
+        opacity: isSel ? 0.95 : 0.5,
+        dashArray: isSel ? null : '6 6',
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(map);
+      line.on('click', function(){ post({ type: 'route', id: rt.id }); });
+      if (isSel) {
+        rt.coords.forEach(function(p){ routeBounds.push(p); });
+      }
+    });
+  }
+
+  // 2. Nuqtalar va pinlarni o'rnatish
+  if (markers && markers.length > 0) {
+    markers.forEach(function(m, idx){
+      if (!m.lat || !m.lng) return;
+      var fill = '#FFCC00';
+      var letter = m.label || String.fromCharCode(65 + idx);
+      L.marker([m.lat, m.lng], { icon: makePin(fill, letter) }).addTo(map);
+      routeBounds.push([m.lat, m.lng]);
+    });
+  }
+
+  // 3. Marshrut chizilgan bo'lsa xaritani barcha nuqtalarga moslab joylash
+  if (routeBounds.length > 1) {
+    try { map.fitBounds(routeBounds, { padding: [60, 60], maxZoom: 16 }); } catch(e){}
   }
 
   if (MODE === 'zones') {
@@ -161,7 +196,6 @@ ${pinHtml}
           fillOpacity: z.highlighted ? 0.45 : (DARK ? 0.18 : 0.12)
         }).addTo(map);
         poly.on('click', function(){ post({ type: 'zone', id: z.id }); });
-        // Zona nomi doimiy yorliq sifatida markazda ko'rinib tursin
         if (z.name) poly.bindTooltip(z.name, {
           permanent: true, direction: 'center', className: 'tn-zone-label'
         });
@@ -173,13 +207,11 @@ ${pinHtml}
       });
     });
 
-    // "Siz shu yerdasiz" nuqtasi — DOIM ko'rinib turadi (zona tanlansa ham yo'qolmaydi)
     if (userLoc) {
       L.marker([userLoc.lat, userLoc.lng], { icon: makeDot('#FF3B30', 18), zIndexOffset: 1000 })
         .addTo(map).bindTooltip('Siz shu yerda', { direction: 'top' });
     }
 
-    // Markazlash: zona tanlangan bo'lsa — o'sha zonaga; aks holda joriy joyga; bo'lmasa barcha zonalar
     if (selBounds && selBounds.length) {
       try { map.fitBounds(selBounds, { padding: [40, 40], maxZoom: 13 }); } catch(e){}
     } else if (userLoc) {
@@ -189,39 +221,10 @@ ${pinHtml}
     }
   }
 
-  if (MODE === 'route') {
-    var bounds = [];
-    routes.forEach(function(rt){
-      if (!rt.coords || rt.coords.length < 2) return;
-      var line = L.polyline(rt.coords, {
-        color: rt.color || '#FFCC00',
-        weight: rt.selected ? 6 : 4,
-        opacity: rt.selected ? 1 : 0.55,
-        dashArray: rt.selected ? null : '8 6'
-      }).addTo(map);
-      line.on('click', function(){ post({ type: 'route', id: rt.id }); });
-      rt.coords.forEach(function(p){ bounds.push(p); });
-    });
-    markers.forEach(function(m){
-      var isEnd = m.type === 'end';
-      var color = isEnd ? '#0F1216' : '#FFCC00';
-      var letter = m.label || (isEnd ? 'B' : 'A');
-      L.marker([m.lat, m.lng], { icon: makePin(color, letter) }).addTo(map);
-      bounds.push([m.lat, m.lng]);
-    });
-    if (bounds.length > 0) {
-      try { map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 }); } catch(e){}
-    }
-  }
-
-  if (MODE === 'picker') {
-    // Markaz o'zgarganda emit qilamiz, lekin:
-    //  - faqat sezilarli siljishda (mayda titrashlarni e'tiborsiz qoldiramiz)
-    //  - moveend ketma-ket yonganda debounce bilan bir martagina yuboramiz
+  if (MODE === 'picker' && showCenterPin) {
     var lastLat = null, lastLng = null, emitTimer = null;
     var emit = function(){
       var ctr = map.getCenter();
-      // ~5 metrdan kichik siljishni o'tkazib yuboramiz (qayta-qayta geokodlashni oldini oladi)
       if (lastLat !== null) {
         var dLat = Math.abs(ctr.lat - lastLat);
         var dLng = Math.abs(ctr.lng - lastLng);
@@ -238,7 +241,6 @@ ${pinHtml}
     setTimeout(emit, 300);
   }
 
-  // RN dan markazni o'zgartirish
   window.recenter = function(lat, lng, z){ map.setView([lat, lng], z || map.getZoom()); };
   post({ type: 'ready' });
 </script>
@@ -249,8 +251,6 @@ ${pinHtml}
 export const MapWebView = forwardRef<MapWebViewHandle, Props>(function MapWebView(props, ref) {
   const webRef = useRef<WebView>(null);
 
-  // HTML faqat mode/markers/routes/tema o'zgarganda qayta quriladi.
-  // center o'zgarsa qayta yuklamaymiz — recenter() orqali harakatlantiramiz.
   const html = useMemo(
     () => buildHtml(props),
     // eslint-disable-next-line react-hooks/exhaustive-deps

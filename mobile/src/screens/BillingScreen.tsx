@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, Alert, Animated, Easing, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, Alert, Animated, Easing, ActivityIndicator, Linking, AppState } from "react-native";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,13 +12,18 @@ import { apiGet, apiPost } from "@/lib/api/client";
 import { formatUzs, formatUzsShort, formatDateTime } from "@/lib/format";
 import type { Subscription, Transaction, PaymeCheckout } from "@/lib/api/types";
 
+import { useRouter } from "expo-router";
+
 export function BillingScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const [sub, setSub] = useState<Subscription | null>(null);
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [checkout, setCheckout] = useState<PaymeCheckout | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
+  const [showSelectModal, setShowSelectModal] = useState(false);
 
   // Sparkles iconi uchun pulslanuvchi animatsiya
   const pulse = useRef(new Animated.Value(0)).current;
@@ -54,9 +59,55 @@ export function BillingScreen() {
     load();
   }, []);
 
+  // Payme ilovasiga o'tib kelgach, ilovaga qaytilganda to'lov holatini tekshirish
+  useEffect(() => {
+    if (!pendingOrderId) return;
+    const checkStatus = async () => {
+      try {
+        const res = await apiGet<{ paid: boolean }>(`/billing/payme/status/?order_id=${pendingOrderId}`);
+        if (res.paid) {
+          setPendingOrderId(null);
+          await load();
+          Alert.alert("Muvaffaqiyatli!", "To'lov qabul qilindi — obuna 30 kunga uzaytirildi!");
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const interval = setInterval(checkStatus, 3000);
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        checkStatus();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [pendingOrderId]);
+
   const priceUzs = sub?.monthly_price_uzs || 0;
 
-  const subscribe = async () => {
+  /** Payme ilovasiga o'tib to'lash (Deep Link) */
+  const openPaymeApp = async () => {
+    setShowSelectModal(false);
+    setBusy(true);
+    try {
+      const co = await apiPost<PaymeCheckout>("/billing/payme/checkout/", {});
+      setPendingOrderId(co.order_id);
+      await Linking.openURL(co.checkout_url);
+    } catch (err: any) {
+      Alert.alert("Xatolik", err?.data?.detail || "Qayta urinib ko'ring");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Ilova ichida WebView orqali to'lash */
+  const openWebView = async () => {
+    setShowSelectModal(false);
     setBusy(true);
     try {
       const co = await apiPost<PaymeCheckout>("/billing/payme/checkout/", {});
@@ -70,6 +121,7 @@ export function BillingScreen() {
 
   const onPaid = () => {
     setCheckout(null);
+    setPendingOrderId(null);
     load();
     Alert.alert("Muvaffaqiyatli", "To'lov qabul qilindi — obuna 30 kunga uzaytirildi!");
   };
@@ -98,6 +150,7 @@ export function BillingScreen() {
       <Header
         title="Obuna"
         subtitle={priceUzs ? `Premium — oyiga ${formatUzs(priceUzs)}` : "Premium obuna"}
+        onBack={() => router.back()}
       />
 
       <View style={[styles.premium, { backgroundColor: colors.black }]}>
@@ -124,11 +177,11 @@ export function BillingScreen() {
           </View>
         ) : null}
 
-        {/* To'lash — faqat obuna faol bo'lmaganda yoki 3 kundan kam qolganda */}
+        {/* To'lash — Bitta tugma */}
         {(!sub || !sub.is_active || sub.days_left <= 3) ? (
           <Button
-            title={`Payme orqali to'lash (${formatUzs(priceUzs)})`}
-            onPress={subscribe}
+            title={`To'lash (${formatUzs(priceUzs)})`}
+            onPress={() => setShowSelectModal(true)}
             loading={busy}
             style={{ marginTop: 16 }}
           />
@@ -192,6 +245,15 @@ export function BillingScreen() {
           })
         )}
       </Card>
+
+      {/* To'lov usulini tanlash modali */}
+      <SelectPaymentModal
+        visible={showSelectModal}
+        amountUzs={priceUzs}
+        onClose={() => setShowSelectModal(false)}
+        onPaymeApp={openPaymeApp}
+        onWebView={openWebView}
+      />
 
       <PaymeModal
         checkout={checkout}
@@ -268,10 +330,121 @@ function PaymeModal({
                 </Text>
               </View>
             )}
+            onNavigationStateChange={async (navState) => {
+              if (navState.url && (navState.url.includes("success") || navState.url.includes("taxiscan"))) {
+                try {
+                  const s = await apiGet<{ paid: boolean }>(
+                    `/billing/payme/status/?order_id=${checkout.order_id}`
+                  );
+                  if (s.paid) {
+                    onPaid();
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+            }}
             style={{ flex: 1 }}
           />
         ) : null}
       </View>
+    </Modal>
+  );
+}
+
+/** To'lov usullarini tanlash modali (Payme, Click, Paynet) */
+function SelectPaymentModal({
+  visible,
+  amountUzs,
+  onClose,
+  onPaymeApp,
+  onWebView,
+}: {
+  visible: boolean;
+  amountUzs: number;
+  onClose: () => void;
+  onPaymeApp: () => void;
+  onWebView: () => void;
+}) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={[styles.methodModalContent, { backgroundColor: colors.black, paddingBottom: insets.bottom + 20 }]} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.modalIndicator} />
+          
+          <View style={styles.methodModalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.methodModalTitle}>To'lov usulini tanlang</Text>
+              <Text style={styles.methodModalSub}>
+                Obuna narxi: <Text style={{ color: "#fff", fontWeight: "900" }}>{formatUzs(amountUzs)} so'm</Text>
+              </Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Ionicons name="close-circle" size={26} color="rgba(255,255,255,0.6)" />
+            </Pressable>
+          </View>
+
+          {/* 1. Payme — Active */}
+          <Pressable onPress={onPaymeApp} style={styles.paymeActiveCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={[styles.methodIconBox, { backgroundColor: "#00CCCC" }]}>
+                <Ionicons name="card" size={22} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>Payme</Text>
+                  <View style={styles.activeBadge}>
+                    <Text style={styles.activeBadgeTxt}>FAOL</Text>
+                  </View>
+                </View>
+                <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 2 }}>
+                  Payme ilovasi orqali tezkor to'lov
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ marginTop: 14 }}>
+              <View style={styles.paymeActionBtnPrimary}>
+                <Ionicons name="card-outline" size={16} color="#000" />
+                <Text style={{ color: "#000", fontWeight: "900", fontSize: 14 }}>
+                  To'lash
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+
+          {/* 2. Click — Disabled */}
+          <View style={styles.disabledCard}>
+            <View style={[styles.methodIconBox, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
+              <Ionicons name="wallet-outline" size={22} color="rgba(255,255,255,0.3)" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontWeight: "800", fontSize: 15 }}>Click</Text>
+              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1 }}>Click Evolution to'lov tizimi</Text>
+            </View>
+            <View style={styles.comingBadge}>
+              <Text style={styles.comingBadgeTxt}>TEZ ORADA</Text>
+            </View>
+          </View>
+
+          {/* 3. Paynet — Disabled */}
+          <View style={styles.disabledCard}>
+            <View style={[styles.methodIconBox, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
+              <Ionicons name="cash-outline" size={22} color="rgba(255,255,255,0.3)" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontWeight: "800", fontSize: 15 }}>Paynet</Text>
+              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1 }}>Paynet ilovasi yoki terminal</Text>
+            </View>
+            <View style={styles.comingBadge}>
+              <Text style={styles.comingBadgeTxt}>TEZ ORADA</Text>
+            </View>
+          </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -323,5 +496,116 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
+  },
+  webFallbackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  methodModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    gap: 14,
+  },
+  modalIndicator: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  methodModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  methodModalTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  methodModalSub: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  paymeActiveCard: {
+    backgroundColor: "rgba(0, 204, 204, 0.12)",
+    borderColor: "#00CCCC",
+    borderWidth: 1.5,
+    borderRadius: radius.md,
+    padding: 14,
+  },
+  disabledCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: 14,
+    opacity: 0.6,
+  },
+  methodIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeBadge: {
+    backgroundColor: "#00CCCC",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  activeBadgeTxt: {
+    color: "#000",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  comingBadge: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  comingBadgeTxt: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  paymeActionBtnPrimary: {
+    backgroundColor: "#00CCCC",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+  },
+  paymeActionBtnSecondary: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: radius.md,
   },
 });

@@ -13,6 +13,9 @@ import Constants from "expo-constants";
  * va USE_LAN ni `true` qiling.
  */
 
+const PROD_API_BASE = "https://backend.taxiscan.app";
+const USE_PROD = true; // Real production backend
+
 const LAN_IP = "192.168.100.101"; // zarur bo'lsa kompyuter IP sini yozing
 const USE_LAN = false; // avtomatik o'rniga qo'lda IP ishlatish uchun true qiling
 
@@ -31,6 +34,7 @@ function getDevHostIp(): string | null {
 }
 
 function resolveBase(): string {
+  if (USE_PROD) return PROD_API_BASE;
   if (USE_LAN) return `http://${LAN_IP}:${PORT}`;
 
   // Web (Expo web) — brauzer kompyuterda ishlaydi

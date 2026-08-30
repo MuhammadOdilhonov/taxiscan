@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useTheme, radius } from "@/theme";
 import { Screen } from "@/components/ui/Screen";
 import { Card } from "@/components/ui/Card";
@@ -21,6 +22,7 @@ const TIER_TABS = [
 
 export function StatsScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const [data, setData] = useState<HourlyStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [secsLeft, setSecsLeft] = useState(REFRESH_SEC);
@@ -90,6 +92,7 @@ export function StatsScreen() {
       <Header
         title="Real statistika"
         subtitle="Har bir taksopark o'rtacha narxi · 1 daqiqada yangilanadi"
+        onBack={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
         right={
           <View style={[styles.timerBadge, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <Ionicons name="time-outline" size={13} color={colors.inkMuted} />

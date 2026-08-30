@@ -17,11 +17,9 @@ BRANDS = {
         "name": "Yandex Go",
         "color": "#FFCC00",
         "website": "https://taxi.yandex.uz",
-        # Rasmiy AppMetrica universal link — brauzerda ham, mobil ilovada ham
-        # manzil bilan to'g'ri ochiladi (ilova bo'lmasa veb/do'konga yo'naltiradi).
-        "deeplink_template": "https://3.redirect.appmetrica.yandex.com/route?"
+        "deeplink_template": "yandextaxi://route?"
                              "start-lat={start_lat}&start-lon={start_lng}"
-                             "&end-lat={end_lat}&end-lon={end_lng}&ref=taxinarx",
+                             "&end-lat={end_lat}&end-lon={end_lng}",
     },
     # Quyidagi mahalliy brendlarning rasmiy deeplink sxemasi ommaviy hujjatlashtirilmagan.
     # Shuning uchun bo'sh qoldiramiz — ilova ochilmasa mobil tarafda Play Store / sayt

@@ -1,5 +1,5 @@
 {
-  "name": "taxinarx-mobile",
+  "name": "taxiscan-mobile",
   "version": "1.0.0",
   "main": "expo-router/entry",
   "private": true,
@@ -7,7 +7,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:apk": "eas build -p android --profile preview"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

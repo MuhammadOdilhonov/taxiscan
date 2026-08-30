@@ -75,7 +75,7 @@ export function PriceList({
             ]}
           >
             <View style={styles.main}>
-              <ServiceLogo code={r.service.code} color={r.service.color} size={46} />
+              <ServiceLogo code={r.service.code} color={r.service.color} uri={r.service.logo} size={46} />
 
               <View style={styles.info}>
                 <View style={styles.titleRow}>

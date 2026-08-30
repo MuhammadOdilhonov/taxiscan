@@ -1,34 +1,34 @@
 import { Platform } from "react-native";
-import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { apiPost } from "@/lib/api/client";
 
-// Ilova ochiq bo'lganda ham bildirishnoma ko'rsatilsin.
-// Import paytida xato bermasligi uchun try/catch ichida.
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
-} catch {
-  /* Expo Go cheklovi — e'tiborsiz qoldiramiz */
-}
+const isExpoGo = Constants.appOwnership === "expo";
 
 /**
  * Telefon push tokenini olib backendga saqlaydi (ilova yopiq bo'lsa ham
  * bildirishnoma kelishi uchun). Xato bo'lsa jim o'tadi — in-app bildirishnoma baribir ishlaydi.
- *
- * Eslatma: Expo Go (Android, SDK 53+) remote push'ni qo'llab-quvvatlamaydi —
- * to'liq ishlashi uchun dev build / standalone APK kerak.
  */
 export async function registerPushToken() {
+  if (isExpoGo) return;
+
   try {
+    const Device = await import("expo-device");
     if (!Device.isDevice) return;
+
+    const Notifications = await import("expo-notifications");
+
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        }),
+      });
+    } catch {
+      /* ignore */
+    }
 
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {

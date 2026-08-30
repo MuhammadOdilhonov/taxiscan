@@ -3,7 +3,7 @@ import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
- * TaxiNarx dizayn tizimi — web (Tailwind) bilan bir xil ranglar.
+ * TaxiScan dizayn tizimi — web (Tailwind) bilan bir xil ranglar.
  * brand = #FFCC00 (Yandex sariq), ink = qora oilasi.
  */
 
