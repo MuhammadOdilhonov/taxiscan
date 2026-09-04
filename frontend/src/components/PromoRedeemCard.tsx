@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/api/client";
 import { Ticket, Check, AlertCircle } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { useAuth } from "@/lib/store/auth";
 
 interface Redemption {
   id: number;
@@ -51,6 +52,8 @@ export function PromoRedeemCard({ onApplied }: { onApplied?: () => void }) {
       setMsg({ ok: true, text: r.detail });
       setCode("");
       await loadList();
+      // MUHIM: obuna holatini yangilash — cheklovlar darhol olib tashlanadi
+      await useAuth.getState().loadMe().catch(() => {});
       onApplied?.();
     } catch (err: any) {
       setMsg({ ok: false, text: err?.data?.detail || "Promo-kodni qo'llab bo'lmadi" });

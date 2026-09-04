@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SiteThemeLoader } from "@/components/SiteThemeLoader";
 
 export const metadata: Metadata = {
   title: "TaxiNarx — Toshkentdagi taksilar narxini taqqoslang",
@@ -19,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('taxinarx_theme')||'auto';var d=t==='dark'||(t==='auto'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('taxinarx_theme')||localStorage.getItem('tn_default_theme')||'auto';var d=t==='dark'||(t==='auto'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');var bc=localStorage.getItem('tn_brand_color');if(bc&&/^#?[0-9a-fA-F]{6}$/.test(bc)){var n=parseInt(bc.replace('#',''),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255,s=document.documentElement.style,T={50:.9,100:.8,200:.6,300:.4,400:.2},S={600:.2,700:.4,800:.6,900:.8};s.setProperty('--brand-500',r+' '+g+' '+b);for(var k in T){s.setProperty('--brand-'+k,Math.round(r*(1-T[k])+255*T[k])+' '+Math.round(g*(1-T[k])+255*T[k])+' '+Math.round(b*(1-T[k])+255*T[k]));}for(var k in S){s.setProperty('--brand-'+k,Math.round(r*(1-S[k]))+' '+Math.round(g*(1-S[k]))+' '+Math.round(b*(1-S[k])));}}}catch(e){}})();`,
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,7 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="font-sans" suppressHydrationWarning>{children}</body>
+      <body className="font-sans" suppressHydrationWarning>
+        <SiteThemeLoader />
+        {children}
+      </body>
     </html>
   );
 }

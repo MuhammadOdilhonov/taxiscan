@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Modal, Alert, Animated, Easing, ActivityIndicator, Linking, AppState } from "react-native";
+import { View, Text, StyleSheet, Pressable, Modal, Alert, Animated, Easing, ActivityIndicator, Linking, AppState, TextInput } from "react-native";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Header } from "@/components/ui/Header";
 import { apiGet, apiPost } from "@/lib/api/client";
+import { useAuth } from "@/store/auth";
 import { formatUzs, formatUzsShort, formatDateTime } from "@/lib/format";
 import type { Subscription, Transaction, PaymeCheckout } from "@/lib/api/types";
 
@@ -24,6 +25,11 @@ export function BillingScreen() {
   const [checkout, setCheckout] = useState<PaymeCheckout | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
   const [showSelectModal, setShowSelectModal] = useState(false);
+
+  // Promo-kod (aksiya) holati
+  const [promoCode, setPromoCode] = useState("");
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoMsg, setPromoMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Sparkles iconi uchun pulslanuvchi animatsiya
   const pulse = useRef(new Animated.Value(0)).current;
@@ -48,6 +54,8 @@ export function BillingScreen() {
       ]);
       setSub(s);
       setTxns(t.results || []);
+      // Obuna holatini auth user'ga yozamiz — cheklovlar (gating) darhol yangilanadi
+      await useAuth.getState().loadMe().catch(() => {});
     } catch {
       /* ignore */
     } finally {
@@ -124,6 +132,24 @@ export function BillingScreen() {
     setPendingOrderId(null);
     load();
     Alert.alert("Muvaffaqiyatli", "To'lov qabul qilindi — obuna 30 kunga uzaytirildi!");
+  };
+
+  /** Promo-kodni (aksiya) faollashtirish — bepul kun yoki chegirma */
+  const redeemPromo = async () => {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) return;
+    setPromoBusy(true);
+    setPromoMsg(null);
+    try {
+      const res = await apiPost<{ detail: string }>("/billing/promo/redeem/", { code });
+      setPromoMsg({ ok: true, text: res.detail || "Promo-kod faollashtirildi!" });
+      setPromoCode("");
+      await load();
+    } catch (err: any) {
+      setPromoMsg({ ok: false, text: err?.data?.detail || "Promo-kodni faollashtirib bo'lmadi" });
+    } finally {
+      setPromoBusy(false);
+    }
   };
 
   const cancel = () => {
@@ -208,6 +234,50 @@ export function BillingScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Promo-kod (aksiya) */}
+      <Card padded>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <Ionicons name="gift-outline" size={18} color={colors.brandDark} />
+          <Text style={[styles.blockTitle, { color: colors.ink }]}>Promo-kod</Text>
+        </View>
+        <Text style={{ color: colors.inkMuted, fontSize: 12, marginBottom: 10 }}>
+          Aksiya kodingiz bo'lsa kiriting — bepul kunlar yoki chegirma olasiz.
+        </Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TextInput
+            value={promoCode}
+            onChangeText={(t) => setPromoCode(t.toUpperCase())}
+            placeholder="Masalan: TAXI2026"
+            placeholderTextColor={colors.inkMuted}
+            autoCapitalize="characters"
+            style={[styles.promoInput, { backgroundColor: colors.cardAlt, borderColor: colors.line, color: colors.ink }]}
+          />
+          <Pressable
+            onPress={redeemPromo}
+            disabled={promoBusy || !promoCode.trim()}
+            style={[styles.promoBtn, { backgroundColor: colors.brand, opacity: promoBusy || !promoCode.trim() ? 0.6 : 1 }]}
+          >
+            {promoBusy ? (
+              <ActivityIndicator size="small" color="#0F1216" />
+            ) : (
+              <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 14 }}>Faollashtirish</Text>
+            )}
+          </Pressable>
+        </View>
+        {promoMsg ? (
+          <View style={[styles.promoMsg, { backgroundColor: promoMsg.ok ? colors.greenBg : colors.redBg }]}>
+            <Ionicons
+              name={promoMsg.ok ? "checkmark-circle" : "close-circle"}
+              size={16}
+              color={promoMsg.ok ? colors.green : colors.red}
+            />
+            <Text style={{ color: promoMsg.ok ? colors.green : colors.red, fontSize: 12, flex: 1 }}>
+              {promoMsg.text}
+            </Text>
+          </View>
+        ) : null}
+      </Card>
 
       <Card padded>
         <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>
@@ -477,6 +547,30 @@ const styles = StyleSheet.create({
   },
   cancelBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
   blockTitle: { fontSize: 15, fontWeight: "800" },
+  promoInput: {
+    flex: 1,
+    height: 46,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  promoBtn: {
+    paddingHorizontal: 16,
+    height: 46,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoMsg: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: radius.md,
+  },
   secure: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14 },
   txn: {
     flexDirection: "row",

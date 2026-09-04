@@ -223,20 +223,32 @@ class RedeemPromoView(APIView):
             defaults={"expires_at": timezone.now() + timedelta(days=free_trial_days())},
         )
 
-        if promo.reward_type == "discount":
-            # Keyingi obuna to'loviga chegirma (bir marta qo'llanadi)
+        from django.conf import settings as dj_settings
+        period_days = int(dj_settings.TAXINARX.get("SUBSCRIPTION_PERIOD_DAYS", 30))
+
+        granted_days = 0
+        granted_discount = 0
+        if promo.reward_type == "discount" and promo.discount_percent >= 100:
+            # 100% chegirma = 1 oy (davr) BEPUL — to'lovsiz darhol qo'shiladi
+            sub.extend(days=period_days)
+            granted_days = period_days
+            detail = f"Tabriklaymiz! Sizga {period_days} kun (1 oy) BEPUL obuna berildi."
+        elif promo.reward_type == "discount":
+            # Qisman chegirma — keyingi obuna to'loviga bir marta qo'llanadi
             sub.discount_percent = min(100, promo.discount_percent)
             sub.save(update_fields=["discount_percent"])
-            granted = 0
+            granted_discount = promo.discount_percent
             detail = f"Chegirma faollashtirildi! Keyingi obuna to'lovida {promo.discount_percent}% chegirma."
         else:
+            # Bepul kunlar (masalan 30 = 1 oy tekin)
             sub.extend(days=promo.free_days)
-            granted = promo.free_days
+            granted_days = promo.free_days
             detail = f"Tabriklaymiz! Obunangizga {promo.free_days} kun qo'shildi."
 
         redemption = PromoRedemption.objects.create(
             user=request.user, promo=promo, status="applied",
-            free_days_granted=granted,
+            free_days_granted=granted_days,
+            discount_percent_granted=granted_discount,
         )
         promo.used_count += 1
         promo.save(update_fields=["used_count"])

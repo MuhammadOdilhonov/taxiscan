@@ -276,8 +276,18 @@ class PromoRedemption(models.Model):
     )
     promo = models.ForeignKey(PromoCode, on_delete=models.CASCADE, related_name="redemptions")
     status = models.CharField(max_length=12, choices=STATUS, default="applied")
-    free_days_granted = models.PositiveIntegerField(default=0)
+    free_days_granted = models.PositiveIntegerField("Berilgan bepul kunlar", default=0)
+    discount_percent_granted = models.PositiveIntegerField("Berilgan chegirma (%)", default=0)
     redeemed_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def benefit_label(self) -> str:
+        """Admin uchun qisqa izoh: nima berilgani (tekin/chegirma/qancha)."""
+        if self.free_days_granted:
+            return f"+{self.free_days_granted} kun bepul"
+        if self.discount_percent_granted:
+            return f"{self.discount_percent_granted}% chegirma"
+        return "—"
 
     class Meta:
         verbose_name = "Promo-kod ishlatilishi"

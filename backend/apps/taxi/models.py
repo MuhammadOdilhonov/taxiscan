@@ -203,3 +203,38 @@ class DriverPanelSettings(models.Model):
     def get_solo(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class SiteSetting(models.Model):
+    """Sayt global ko'rinish sozlamalari (singleton, pk=1) — admin boshqaradi.
+
+    brand_color   — saytning asosiy (brend) rangi HEX (#RRGGBB), butun saytga qo'llanadi.
+    default_theme — yangi (temasi tanlanmagan) foydalanuvchilar uchun standart rejim.
+    """
+    THEME_CHOICES = [("light", "Yorug'"), ("dark", "Qorong'i"), ("auto", "Avto")]
+
+    brand_color = models.CharField(
+        "Brend rangi (HEX)", max_length=7, default="#FFCC00",
+        help_text="Masalan #FFCC00 — butun saytning asosiy rangi.",
+    )
+    default_theme = models.CharField(
+        "Standart rejim", max_length=5, choices=THEME_CHOICES, default="auto",
+        help_text="Foydalanuvchi o'zi tanlamaguncha ko'rinadigan kun/tun rejimi.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Sayt ko'rinishi"
+        verbose_name_plural = "Sayt ko'rinishi"
+
+    def __str__(self):
+        return "Sayt ko'rinishi sozlamalari"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # singleton — doim bitta yozuv
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

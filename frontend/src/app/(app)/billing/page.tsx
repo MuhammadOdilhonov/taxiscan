@@ -5,6 +5,7 @@ import { apiGet, apiPost } from "@/lib/api/client";
 import type { PaymeCheckout, Subscription, Transaction } from "@/lib/api/types";
 import { Spinner } from "@/components/ui/Spinner";
 import { formatUzs, formatDateTime } from "@/lib/format";
+import { useAuth } from "@/lib/store/auth";
 import {
   Crown,
   CheckCircle2,
@@ -29,6 +30,8 @@ export default function BillingPage() {
     ]);
     setSub(s);
     setTxns(t.results || []);
+    // Obuna holatini auth user'ga ham yozamiz — cheklovlar (gating) darhol yangilanadi
+    await useAuth.getState().loadMe().catch(() => {});
   };
 
   useEffect(() => {

@@ -9,6 +9,19 @@
   --surface-2: 247 248 250;
   --line: 229 232 236;
   --muted: 92 103 114;
+
+  /* Brend rangi shkalasi (admin o'zgartira oladi — JS bu qiymatlarni yozadi).
+     Standart: #FFCC00 (sariq). RGB triplet (Tailwind rgb(var(--brand-XXX)) uchun). */
+  --brand-50: 255 250 229;
+  --brand-100: 255 245 204;
+  --brand-200: 255 235 153;
+  --brand-300: 255 224 102;
+  --brand-400: 255 214 51;
+  --brand-500: 255 204 0;
+  --brand-600: 204 163 0;
+  --brand-700: 153 122 0;
+  --brand-800: 102 82 0;
+  --brand-900: 51 41 0;
 }
 
 html.dark {

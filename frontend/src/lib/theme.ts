@@ -19,7 +19,11 @@ function applyTheme(t: Theme) {
 
 export function initTheme() {
   if (typeof window === "undefined") return;
-  const t = (localStorage.getItem(KEY) as Theme) || "auto";
+  // Foydalanuvchi tanlamagan bo'lsa — admin sozlagan standart rejim (tn_default_theme)
+  const t =
+    (localStorage.getItem(KEY) as Theme) ||
+    (localStorage.getItem("tn_default_theme") as Theme) ||
+    "auto";
   applyTheme(t);
 }
 
@@ -29,7 +33,10 @@ export function useTheme() {
   const isPremium = useAuth((s) => Boolean(s.user?.subscription?.is_active));
 
   useEffect(() => {
-    const saved = (localStorage.getItem(KEY) as Theme) || "auto";
+    const saved =
+      (localStorage.getItem(KEY) as Theme) ||
+      (localStorage.getItem("tn_default_theme") as Theme) ||
+      "auto";
     setThemeState(saved);
     applyTheme(isPremium ? saved : "light");
   }, [isPremium]);

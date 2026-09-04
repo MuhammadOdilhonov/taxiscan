@@ -12,6 +12,7 @@ from .views import (
     RouteView,
     LivePricesView,
     DriverDemandView,
+    SiteSettingView,
 )
 
 router = DefaultRouter()
@@ -28,5 +29,6 @@ urlpatterns = [
     path("geocode/reverse/", ReverseGeocodeView.as_view(), name="geocode-reverse"),
     path("geocode/search/", GeocodeSearchView.as_view(), name="geocode-search"),
     path("route/", RouteView.as_view(), name="route"),
+    path("site-settings/", SiteSettingView.as_view(), name="site-settings"),
     path("", include(router.urls)),
 ]

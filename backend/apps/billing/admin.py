@@ -28,15 +28,15 @@ class CardAdmin(admin.ModelAdmin):
 
 @admin.register(PromoCode)
 class PromoCodeAdmin(admin.ModelAdmin):
-    list_display = ("code", "free_days", "audience", "used_count", "max_uses", "valid_until", "is_active", "status")
-    list_filter = ("audience", "is_active")
+    list_display = ("code", "reward_type", "free_days", "discount_percent", "audience", "used_count", "max_uses", "valid_until", "is_active", "status")
+    list_filter = ("reward_type", "audience", "is_active")
     search_fields = ("code", "description")
     readonly_fields = ("used_count", "created_at")
 
 
 @admin.register(PromoRedemption)
 class PromoRedemptionAdmin(admin.ModelAdmin):
-    list_display = ("user", "promo", "status", "free_days_granted", "redeemed_at")
+    list_display = ("user", "promo", "status", "benefit_label", "free_days_granted", "discount_percent_granted", "redeemed_at")
     list_filter = ("status", "redeemed_at")
     search_fields = ("user__phone", "promo__code")
     readonly_fields = ("redeemed_at",)

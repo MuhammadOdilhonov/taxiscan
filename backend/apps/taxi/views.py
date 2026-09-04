@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import TaxiService, Region, PriceEstimate, FavoriteRoute
+from .models import TaxiService, Region, PriceEstimate, FavoriteRoute, SiteSetting
 from .serializers import (
     TaxiServiceSerializer,
     RegionSerializer,
@@ -83,6 +83,15 @@ class QuickLocalView(APIView):
             sample_distance_km=d["sample_distance_km"],
         )
         return Response(result)
+
+
+class SiteSettingView(APIView):
+    """Sayt global ko'rinish sozlamalari (brend rangi + standart rejim) — ochiq (auth kerak emas)."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        s = SiteSetting.get_solo()
+        return Response({"brand_color": s.brand_color, "default_theme": s.default_theme})
 
 
 class ReverseGeocodeView(APIView):

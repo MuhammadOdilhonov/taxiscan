@@ -9,17 +9,18 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#FFCC00",
-          50: "#FFFAE5",
-          100: "#FFF5CC",
-          200: "#FFEB99",
-          300: "#FFE066",
-          400: "#FFD633",
-          500: "#FFCC00",
-          600: "#CCA300",
-          700: "#997A00",
-          800: "#665200",
-          900: "#332900",
+          // CSS o'zgaruvchilari orqali — admin brend rangini runtime'da o'zgartira oladi
+          DEFAULT: "rgb(var(--brand-500) / <alpha-value>)",
+          50: "rgb(var(--brand-50) / <alpha-value>)",
+          100: "rgb(var(--brand-100) / <alpha-value>)",
+          200: "rgb(var(--brand-200) / <alpha-value>)",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
+          800: "rgb(var(--brand-800) / <alpha-value>)",
+          900: "rgb(var(--brand-900) / <alpha-value>)",
         },
         ink: {
           DEFAULT: "#0F1216",
