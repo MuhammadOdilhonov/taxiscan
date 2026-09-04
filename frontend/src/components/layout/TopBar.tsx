@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/store/auth";
 import { Logo } from "@/components/ui/Logo";
 import { LogOut, User as UserIcon, Sun, Moon, Monitor, Search, BarChart3, Radar } from "lucide-react";
 import { useTheme } from "@/lib/theme";
+import { useIsPremium } from "@/lib/subscription";
+import { PaywallModal } from "@/components/PaywallModal";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export function TopBar() {
@@ -13,16 +16,31 @@ export function TopBar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const isPremium = useIsPremium();
+  const [paywall, setPaywall] = useState<{ title: string; message: string } | null>(null);
   const nextTheme = theme === "light" ? "dark" : theme === "dark" ? "auto" : "light";
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
 
   const isDriver = user?.role === "driver";
   const homeHref = isDriver ? "/driver" : "/passenger";
 
+  // Tungi rejim faqat obuna bilan; bepulga faqat kunduzgi
+  const onThemeClick = () => {
+    if (!isPremium) {
+      setPaywall({
+        title: "Tungi rejim — obuna bilan",
+        message: "Qorong'i (tungi) rejim obuna orqali ochiladi.",
+      });
+      return;
+    }
+    setTheme(nextTheme);
+  };
+
   const links = isDriver
     ? [
         { href: "/driver", label: "Narxlar", icon: Radar },
-        { href: "/driver/stats", label: "Statistika", icon: BarChart3 },
+        // Statistika faqat obunali haydovchi uchun
+        ...(isPremium ? [{ href: "/driver/stats", label: "Statistika", icon: BarChart3 }] : []),
         { href: "/driver/profile", label: "Profil", icon: UserIcon },
       ]
     : [
@@ -70,7 +88,7 @@ export function TopBar() {
             </div>
           </Link>
           <button
-            onClick={() => setTheme(nextTheme)}
+            onClick={onThemeClick}
             className="btn-ghost"
             title={`Mavzu: ${theme}`}
             aria-label="Mavzuni o'zgartirish"
@@ -117,6 +135,13 @@ export function TopBar() {
         })}
       </div>
     </nav>
+
+    <PaywallModal
+      open={!!paywall}
+      onClose={() => setPaywall(null)}
+      title={paywall?.title}
+      message={paywall?.message}
+    />
     </>
   );
 }

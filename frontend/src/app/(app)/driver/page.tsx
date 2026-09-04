@@ -8,10 +8,12 @@ import { PriceDetailModal } from "@/components/PriceDetailModal";
 import { Map, type MarkerPoint, type RegionZone } from "@/components/map/Map";
 import { Spinner } from "@/components/ui/Spinner";
 import { ServiceLogo } from "@/components/ui/ServiceLogo";
-import { Radar, RefreshCcw, TrendingUp, MapPin, Crown, Layers, Banknote, Users, Activity, Maximize2, X } from "lucide-react";
+import { Radar, RefreshCcw, TrendingUp, MapPin, Crown, Layers, Banknote, Users, Activity, Maximize2, X, Lock } from "lucide-react";
 import { formatUzs, formatNum } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { TierPicker } from "@/components/TierPicker";
+import { useIsPremium, FREE_VISIBLE_SERVICES } from "@/lib/subscription";
+import { PaywallModal } from "@/components/PaywallModal";
 import type { Tier, DemandResponse, DemandRegion } from "@/lib/api/types";
 
 const LEVEL_LABEL: Record<string, string> = { high: "Yuqori talab", medium: "O'rtacha", low: "Past talab" };
@@ -31,6 +33,14 @@ interface QuickResp {
 
 export default function DriverHome() {
   const { isDark } = useTheme();
+  const isPremium = useIsPremium();
+  const [paywall, setPaywall] = useState<{ title: string; message: string } | null>(null);
+  const openPaywall = (title: string, message: string) => setPaywall({ title, message });
+  const tarifLocked = () =>
+    openPaywall(
+      "Tarif qulflangan",
+      "Comfort, Comfort+ va Biznes tariflari obuna bilan ochiladi. Bepul rejimda faqat Start tarifi mavjud."
+    );
   const [regions, setRegions] = useState<Region[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -165,7 +175,13 @@ export default function DriverHome() {
           <Layers size={13} /> Tarifni tanlang
         </h3>
         <div className="max-w-3xl mx-auto">
-          <TierPicker rows={data?.results} selected={tier} onSelect={setTier} />
+          <TierPicker
+            rows={data?.results}
+            selected={tier}
+            onSelect={setTier}
+            isPremium={isPremium}
+            onLocked={tarifLocked}
+          />
         </div>
       </div>
 
@@ -343,7 +359,7 @@ export default function DriverHome() {
           </div>
         )}
 
-        {cheapest && mostExpensive && cheapest.service.id !== mostExpensive.service.id && (
+        {isPremium && cheapest && mostExpensive && cheapest.service.id !== mostExpensive.service.id && (
           <div className="card p-3 bg-ink-bg text-xs flex items-center gap-2 text-ink-muted">
             <span>Eng past: <strong className="text-ink">{cheapest.service.name}</strong> — {formatUzs(cheapest.price_uzs)}</span>
             <span className="ml-auto text-green-700 font-bold">
@@ -392,11 +408,22 @@ export default function DriverHome() {
               sortMode="expensive-first"
               highlightMode="expensive"
               onRowClick={setDetailRow}
+              freeLimit={isPremium ? undefined : FREE_VISIBLE_SERVICES}
+              onUpgrade={() =>
+                openPaywall("Taksilar qulflangan", "Barcha taksilar narxini ko'rish uchun obuna bo'ling.")
+              }
             />
           </>
         ) : null}
         </div>
       </div>
+
+      <PaywallModal
+        open={!!paywall}
+        onClose={() => setPaywall(null)}
+        title={paywall?.title}
+        message={paywall?.message}
+      />
 
       {/* Kartani bosganda — katta ekranni egallaydigan narx tafsiloti */}
       <PriceDetailModal
@@ -439,12 +466,21 @@ export default function DriverHome() {
           <div className="absolute top-3 right-3 z-[600] flex items-center gap-2">
             <select
               value={tier}
-              onChange={(e) => setTier(e.target.value as Tier)}
+              onChange={(e) => {
+                const v = e.target.value as Tier;
+                if (!isPremium && v !== "econom") {
+                  tarifLocked();
+                  return;
+                }
+                setTier(v);
+              }}
               className="h-10 rounded-xl bg-white border border-ink-line shadow-lg px-3 text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-brand"
               title="Tarifni tanlang"
             >
               {TIER_OPTIONS.map((t) => (
-                <option key={t.code} value={t.code}>{t.label}</option>
+                <option key={t.code} value={t.code}>
+                  {!isPremium && t.code !== "econom" ? `${t.label} 🔒` : t.label}
+                </option>
               ))}
             </select>
             <button
@@ -471,7 +507,7 @@ export default function DriverHome() {
                 </div>
               ) : sortedByPrice.length > 0 ? (
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                  {sortedByPrice.map((r, i) => (
+                  {(isPremium ? sortedByPrice : sortedByPrice.slice(0, FREE_VISIBLE_SERVICES)).map((r, i) => (
                     <div
                       key={r.service.id}
                       className={`shrink-0 flex items-center gap-2 px-3 py-2.5 rounded-2xl shadow-lg border ${
@@ -488,6 +524,16 @@ export default function DriverHome() {
                       {i === 0 && <Crown size={15} className="text-ink" />}
                     </div>
                   ))}
+                  {!isPremium && sortedByPrice.length > FREE_VISIBLE_SERVICES && (
+                    <button
+                      onClick={() =>
+                        openPaywall("Taksilar qulflangan", "Barcha taksilar narxini ko'rish uchun obuna bo'ling.")
+                      }
+                      className="shrink-0 flex items-center gap-2 px-3 py-2.5 rounded-2xl shadow-lg border border-ink-line bg-white dark:bg-[rgb(var(--surface))] text-brand-700 font-bold text-sm"
+                    >
+                      <Lock size={15} /> +{sortedByPrice.length - FREE_VISIBLE_SERVICES} · Obuna
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="text-xs text-white px-1 py-2 drop-shadow">Rayonni bosing — narxlar shu yerda chiqadi</div>

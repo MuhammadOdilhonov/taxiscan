@@ -11,6 +11,8 @@ import { apiGet, apiPost } from "@/lib/api/client";
 import { formatUzs, formatNum } from "@/lib/format";
 import { openTaxiApp } from "@/lib/openTaxiApp";
 import type { EstimateResponse, Region, Tier, DemandResponse, DemandRegion } from "@/lib/api/types";
+import { useIsPremium } from "@/lib/subscription";
+import { PaywallSheet } from "@/components/PaywallSheet";
 
 const DEFAULT = { lat: 41.311, lng: 69.279 };
 
@@ -35,6 +37,8 @@ function geometryToRings(geom: Region["geometry"]): [number, number][][] {
 export function DriverHome() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const isPremium = useIsPremium();
+  const [paywall, setPaywall] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [regions, setRegions] = useState<Region[]>([]);
   const [selected, setSelected] = useState<Region | null>(null);
@@ -204,25 +208,41 @@ export function DriverHome() {
             {loading ? (
               <ActivityIndicator color="#FFCC00" size="small" style={{ paddingVertical: 14 }} />
             ) : sorted.length > 0 ? (
-              sorted.map((r) => (
-                <Pressable
-                  key={r.service.id}
-                  onPress={() => openService(r)}
-                  style={({ pressed }) => [styles.rateRow, pressed && { opacity: 0.55 }]}
-                  hitSlop={4}
-                >
-                  <View style={styles.rateLeftGroup}>
-                    <ServiceLogo code={r.service.code} uri={r.service.logo} size={24} />
-                    <Text style={[styles.serviceNameTxt, { color: textPrimary }]} numberOfLines={1}>
-                      {r.service.brand || r.service.name}
-                    </Text>
-                  </View>
-                  <View style={styles.rateRightGroup}>
-                    <Text style={styles.ratePrice}>{formatNum(r.price_uzs, 0)}</Text>
-                    <Ionicons name="open-outline" size={12} color="#FFCC00" />
-                  </View>
-                </Pressable>
-              ))
+              sorted.map((r, idx) => {
+                // Bepul haydovchi faqat 2 ta taksini ko'radi, qolgani qulflangan
+                const locked = !isPremium && idx >= 2;
+                return (
+                  <Pressable
+                    key={r.service.id}
+                    onPress={() => (locked ? setPaywall(true) : openService(r))}
+                    style={({ pressed }) => [styles.rateRow, pressed && { opacity: 0.55 }]}
+                    hitSlop={4}
+                  >
+                    <View style={[styles.rateLeftGroup, locked && { opacity: 0.5 }]}>
+                      <ServiceLogo code={r.service.code} uri={r.service.logo} size={24} />
+                      <Text style={[styles.serviceNameTxt, { color: textPrimary }]} numberOfLines={1}>
+                        {r.service.brand || r.service.name}
+                      </Text>
+                    </View>
+                    {locked ? (
+                      <View style={styles.lockedPriceWrap}>
+                        <Text style={[styles.ratePrice, { opacity: 0.15 }]} numberOfLines={1}>
+                          {formatNum(r.price_uzs, 0)}
+                        </Text>
+                        <View style={styles.lockedOverlay}>
+                          <Ionicons name="lock-closed" size={11} color="#FFCC00" />
+                          <Text style={styles.lockedTxt}>Obuna</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.rateRightGroup}>
+                        <Text style={styles.ratePrice}>{formatNum(r.price_uzs, 0)}</Text>
+                        <Ionicons name="open-outline" size={12} color="#FFCC00" />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })
             ) : (
               <Text style={{ color: textMuted, fontSize: 12, paddingVertical: 10 }}>Ma'lumot yo'q</Text>
             )}
@@ -316,19 +336,24 @@ export function DriverHome() {
           <View style={styles.tarifRow}>
             {TARIFS.map((t) => {
               const active = tier === t.key;
+              const locked = !isPremium && t.key !== "econom";
               // Faol tugma: kunduzi to'liq sariq (qora yozuv), tunda sariq yozuv (shaffof fon)
               const activeBg = isDark ? "rgba(255,204,0,0.18)" : "#FFCC00";
               const activeTxt = isDark ? "#FFCC00" : "#0F1216";
               return (
                 <Pressable
                   key={t.key}
-                  onPress={() => setTier(t.key)}
+                  onPress={() => (locked ? setPaywall(true) : setTier(t.key))}
                   style={[
                     styles.tarifPill,
                     { borderColor: cardBorder },
                     active && { backgroundColor: activeBg, borderColor: "#FFCC00" },
+                    locked && { opacity: 0.7 },
                   ]}
                 >
+                  {locked ? (
+                    <Ionicons name="lock-closed" size={11} color="#FFCC00" style={{ marginRight: 3 }} />
+                  ) : null}
                   <Text style={[styles.tarifTxt, { color: active ? activeTxt : textPrimary }]}>{t.label}</Text>
                 </Pressable>
               );
@@ -339,6 +364,14 @@ export function DriverHome() {
 
       {/* 5. MENYU — tepada TaxiScan logotipi + nomi, faqat haydovchi ma'lumotlari (qidiruvsiz) */}
       <AppDrawer visible={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      {/* 6. PAYWALL — qulflangan tariflar uchun obuna taklifi */}
+      <PaywallSheet
+        visible={paywall}
+        onClose={() => setPaywall(false)}
+        title="Tarif qulflangan"
+        message="Comfort, Comfort+ va Biznes tariflari obuna bilan ochiladi."
+      />
     </View>
   );
 }
@@ -406,6 +439,15 @@ const styles = StyleSheet.create({
   rateRightGroup: { flexDirection: "row", alignItems: "center", gap: 4 },
   serviceNameTxt: { fontSize: 12, fontWeight: "700", flexShrink: 1 },
   ratePrice: { fontSize: 13, fontWeight: "900", color: "#FFCC00" },
+  lockedPriceWrap: { minWidth: 56, alignItems: "center", justifyContent: "center" },
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  lockedTxt: { fontSize: 11, fontWeight: "900", color: "#FFCC00" },
 
   /* Floating buttons */
   floatBtns: { position: "absolute", right: 16, gap: 10, zIndex: 35 },
@@ -458,6 +500,7 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 12,
     borderWidth: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { Car, CarFront, Crown, Briefcase } from "lucide-react";
+import { Car, CarFront, Crown, Briefcase, Lock } from "lucide-react";
 import { formatUzs } from "@/lib/format";
 import type { Tier } from "@/lib/api/types";
 import type { PriceRow } from "@/components/PriceList";
@@ -44,10 +44,15 @@ export function TierPicker({
   rows,
   selected,
   onSelect,
+  isPremium = true,
+  onLocked,
 }: {
   rows?: PriceRow[];
   selected: Tier;
   onSelect: (t: Tier) => void;
+  /** Obunasiz bo'lsa faqat "Start" tanlanadi, qolgani qulf */
+  isPremium?: boolean;
+  onLocked?: () => void;
 }) {
   // Har tarif uchun eng arzon narxni topish (rows berilmasa - skip)
   const minByTier = TIERS.reduce<Record<string, number | null>>((acc, t) => {
@@ -66,16 +71,22 @@ export function TierPicker({
         const Icon = t.icon;
         const minPrice = minByTier[t.code];
         const isSelected = selected === t.code;
+        const locked = !isPremium && t.code !== "econom";
         return (
           <button
             key={t.code}
-            onClick={() => onSelect(t.code)}
+            onClick={() => (locked ? onLocked?.() : onSelect(t.code))}
             className={`group relative p-3 rounded-2xl border-2 text-left transition-all overflow-hidden ${
               isSelected
                 ? "border-brand ring-1 ring-brand bg-brand/10 shadow-md -translate-y-0.5"
                 : "border-ink-line bg-white hover:border-ink/40 hover:-translate-y-0.5 hover:shadow-md"
-            }`}
+            } ${locked ? "opacity-70" : ""}`}
           >
+            {locked && (
+              <span className="absolute top-2 right-2 text-brand-700">
+                <Lock size={13} />
+              </span>
+            )}
             <div className="flex items-center gap-2 mb-1">
               <div className={`p-1.5 rounded-lg ${
                 isSelected ? "bg-ink text-brand" : "bg-ink-bg text-ink-muted group-hover:text-ink"

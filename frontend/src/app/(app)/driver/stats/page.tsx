@@ -5,7 +5,10 @@ import { apiGet } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { formatUzs } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
-import { Activity, RefreshCcw, TrendingUp, TrendingDown } from "lucide-react";
+import { useIsPremium } from "@/lib/subscription";
+import { PaywallModal } from "@/components/PaywallModal";
+import { useRouter } from "next/navigation";
+import { Activity, RefreshCcw, TrendingUp, TrendingDown, Lock } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -48,6 +51,8 @@ const REFRESH_MS = 60_000; // 1 daqiqa
 
 export default function DriverStats() {
   const { isDark } = useTheme();
+  const isPremium = useIsPremium();
+  const router = useRouter();
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -125,6 +130,22 @@ export default function DriverStats() {
   const updatedTime = data?.updated_at
     ? new Date(data.updated_at).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : "—";
+
+  // Statistika faqat obunali haydovchilar uchun
+  if (!isPremium) {
+    return (
+      <div className="max-w-lg mx-auto py-16 text-center space-y-4">
+        <div className="w-20 h-20 mx-auto rounded-3xl bg-brand/15 border border-brand flex items-center justify-center">
+          <Lock size={38} className="text-brand-700" />
+        </div>
+        <h1 className="text-2xl font-extrabold text-ink">Statistika obuna bilan ochiladi</h1>
+        <p className="text-sm text-ink-muted leading-relaxed">
+          Narx tendensiyalari va talab statistikasini ko'rish uchun obuna bo'ling.
+        </p>
+        <PaywallModal open onClose={() => router.push("/driver")} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

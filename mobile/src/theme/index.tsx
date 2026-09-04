@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@/store/auth";
 
 /**
  * TaxiScan dizayn tizimi — web (Tailwind) bilan bir xil ranglar.
@@ -109,7 +110,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, m).catch(() => {});
   };
 
-  const isDark = mode === "dark" || (mode === "auto" && system === "dark");
+  // Obuna faolmi — bepul foydalanuvchi uchun tungi rejim yopiq (faqat kunduzgi)
+  const isPremium = useAuth((s) => Boolean(s.user?.subscription?.is_active));
+
+  const rawDark = mode === "dark" || (mode === "auto" && system === "dark");
+  const isDark = isPremium ? rawDark : false;
 
   const value = useMemo<ThemeContextValue>(
     () => ({ colors: isDark ? darkColors : lightColors, isDark, mode, setMode }),

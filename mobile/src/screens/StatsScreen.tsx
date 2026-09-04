@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { apiGet } from "@/lib/api/client";
 import { formatUzs, formatTime } from "@/lib/format";
 import type { HourlyStatsResponse } from "@/lib/api/types";
+import { useIsPremium } from "@/lib/subscription";
+import { PaywallSheet } from "@/components/PaywallSheet";
 
 const REFRESH_SEC = 60;
 
@@ -23,6 +25,7 @@ const TIER_TABS = [
 export function StatsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const isPremium = useIsPremium();
   const [data, setData] = useState<HourlyStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [secsLeft, setSecsLeft] = useState(REFRESH_SEC);
@@ -86,6 +89,30 @@ export function StatsScreen() {
   }, [data, series, selBrand]);
 
   const selColor = selBrand ? series.find((s) => s.brand === selBrand)?.color : null;
+
+  // Statistika faqat obunali foydalanuvchilar uchun
+  if (!isPremium) {
+    return (
+      <Screen>
+        <Header
+          title="Real statistika"
+          onBack={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
+        />
+        <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 20, gap: 16 }}>
+          <View style={[styles.lockIcon, { backgroundColor: colors.card, borderColor: "#FFCC00" }]}>
+            <Ionicons name="lock-closed" size={34} color="#FFCC00" />
+          </View>
+          <Text style={{ color: colors.ink, fontSize: 19, fontWeight: "900", textAlign: "center" }}>
+            Statistika obuna bilan ochiladi
+          </Text>
+          <Text style={{ color: colors.inkMuted, fontSize: 14, textAlign: "center", lineHeight: 20 }}>
+            Narx tendensiyalari va talab statistikasini ko'rish uchun obuna bo'ling.
+          </Text>
+        </View>
+        <PaywallSheet visible onClose={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen refreshing={loading} onRefresh={load}>
@@ -278,6 +305,14 @@ export function StatsScreen() {
 }
 
 const styles = StyleSheet.create({
+  lockIcon: {
+    width: 74,
+    height: 74,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+  },
   timerBadge: {
     flexDirection: "row",
     alignItems: "center",

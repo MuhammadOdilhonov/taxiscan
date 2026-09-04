@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Modal,
   ScrollView,
   ActivityIndicator,
   Dimensions,
@@ -26,6 +25,8 @@ import { reverseGeocode } from "@/lib/api/geocoding";
 import { formatNum } from "@/lib/format";
 import { openTaxiApp } from "@/lib/openTaxiApp";
 import type { EstimateResponse, ServiceInfo, Tier } from "@/lib/api/types";
+import { useIsPremium, canSearchToday, markSearchUsed } from "@/lib/subscription";
+import { PaywallSheet } from "@/components/PaywallSheet";
 
 // Yo'lovchi kartasidagi qisqa kod -> backend brend kodi (deeplink to'g'ri ilovaga borsin)
 const BRAND_CODE: Record<string, string> = {
@@ -59,7 +60,16 @@ export function PassengerHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const user = useAuth((s) => s.user);
+  const isPremium = useIsPremium();
   const mapRef = useRef<MapWebViewHandle>(null);
+
+  // Paywall (obuna taklifi) holati
+  const [paywall, setPaywall] = useState(false);
+  const [paywallInfo, setPaywallInfo] = useState<{ title?: string; message?: string }>({});
+  const openPaywall = (title?: string, message?: string) => {
+    setPaywallInfo({ title, message });
+    setPaywall(true);
+  };
 
   // Manzillar (A doimo saqlanadi)
   const [start, setStart] = useState<AddressValue | null>({
@@ -183,8 +193,15 @@ export function PassengerHome() {
     }
   };
 
-  // Manzil qo'shish (+ tugmasi)
+  // Manzil qo'shish (+ tugmasi) — bepul foydalanuvchi faqat A va B nuqta qo'ya oladi
   const addDestinationStop = () => {
+    if (!isPremium) {
+      openPaywall(
+        "Qo'shimcha manzil qulflangan",
+        "Bepul rejimda faqat A va B nuqta mavjud. Bir nechta manzil (C, D...) qo'shish obuna bilan ishlaydi."
+      );
+      return;
+    }
     setDestinations((prev) => [...prev, { label: "", lat: 0, lng: 0 }]);
   };
 
@@ -215,6 +232,18 @@ export function PassengerHome() {
       return;
     }
 
+    // Bepul foydalanuvchi — kunlik qidiruv limiti (yangi qidiruvda; qayta hisoblashda emas)
+    if (!calculated) {
+      const allowed = await canSearchToday();
+      if (!allowed) {
+        openPaywall(
+          "Kunlik limit tugadi",
+          "Bepul rejimda kuniga faqat 1 marta narx qidirish mumkin. Cheksiz qidirish uchun obuna bo'ling."
+        );
+        return;
+      }
+    }
+
     const finalEnd = validDest[validDest.length - 1];
     const stops = validDest.slice(0, validDest.length - 1).map((d) => ({
       lat: d.lat,
@@ -238,6 +267,7 @@ export function PassengerHome() {
       setCalculated(true);
       setSelectedRouteIndex(0);
       updateCardRatesFromData(res, targetTier, 0);
+      if (!calculated) markSearchUsed();
     } catch (err: any) {
       setError(err?.data?.detail || "Narxni hisoblab bo'lmadi");
     } finally {
@@ -364,8 +394,15 @@ export function PassengerHome() {
     setQuickRates(rawItems);
   };
 
-  // Tarif o'zgarganda narxlarni yangilash
+  // Tarif o'zgarganda narxlarni yangilash (bepul foydalanuvchi faqat "Start" ni ko'radi)
   const handleSelectTarif = (selectedTier: Tier) => {
+    if (!isPremium && selectedTier !== "econom") {
+      openPaywall(
+        "Tarif qulflangan",
+        "Comfort, Comfort+ va Biznes tariflari obuna bilan ochiladi. Bepul rejimda faqat Start tarifi mavjud."
+      );
+      return;
+    }
     setTier(selectedTier);
     if (data) {
       updateCardRatesFromData(data, selectedTier, selectedRouteIndex);
@@ -433,7 +470,8 @@ export function PassengerHome() {
   // Backend OSRM dan qaytgan haqiqiy ko'cha geometriyasi yo'llari (1-yo'l, 2-yo'l...)
   const mapRoutes: MapRoute[] = useMemo(() => {
     if (!data || !calculated) return [];
-    const rts = data.routes || [];
+    // Bepul foydalanuvchi xaritada faqat 1 ta yo'lni ko'radi
+    const rts = isPremium ? data.routes || [] : (data.routes || []).slice(0, 1);
     if (rts.length > 0) {
       return rts.map((r, i) => ({
         id: r.id ?? i + 1,
@@ -451,14 +489,14 @@ export function PassengerHome() {
       }];
     }
     return [];
-  }, [data, calculated, selectedRouteIndex, isDark]);
+  }, [data, calculated, selectedRouteIndex, isDark, isPremium]);
 
   const totalInputRows = 1 + destinations.length;
   const isScrollable = totalInputRows > 3;
   const activeTarifLabel = TARIFS.find((t) => t.key === tier)?.label || "Start";
 
-  // Yo'llar ro'yxati (1-yo'l, 2-yo'l...)
-  const availableRoutesList = data?.routes || [];
+  // Yo'llar ro'yxati (1-yo'l, 2-yo'l...) — bepul foydalanuvchi faqat 1 ta yo'lni ko'radi
+  const availableRoutesList = isPremium ? data?.routes || [] : (data?.routes || []).slice(0, 1);
 
   // LOKATSIYA GPS TUGMASINING BALANDLIGINI DINAMIK HISOB-KITOB QILISH
   const visibleInputRowsCount = Math.min(totalInputRows, 3);
@@ -471,7 +509,6 @@ export function PassengerHome() {
   const textPrimary = isDark ? "#F3F5F7" : "#0F1216";
   const textMuted = isDark ? "#94A2B0" : "#5C6772";
   const inputBg = isDark ? "#14181E" : "#F2F4F7";
-  const drawerBg = isDark ? "#14181E" : "#FFFFFF";
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -515,29 +552,52 @@ export function PassengerHome() {
             {loading ? (
               <ActivityIndicator color="#FFCC00" size="small" style={{ paddingVertical: 14 }} />
             ) : (
-              quickRates.map((item, idx) => (
-                <Pressable
-                  key={idx}
-                  style={({ pressed }) => [styles.rateRow, pressed && { opacity: 0.55 }]}
-                  onPress={() => openBrandApp(item)}
-                  hitSlop={6}
-                >
-                  <View style={styles.rateLeftGroup}>
-                    <ServiceLogo
-                      code={BRAND_CODE[item.code] || item.code}
-                      uri={data?.results?.find((x) =>
-                        x.service.code.toLowerCase().startsWith(BRAND_CODE[item.code] || item.code)
-                      )?.service.logo}
-                      size={26}
-                    />
-                    <Text style={[styles.serviceNameTxt, { color: textPrimary }]}>{item.name}</Text>
-                  </View>
-                  <View style={styles.rateRightGroup}>
-                    <Text style={styles.ratePrice}>{formatNum(item.price, 0)} so'm</Text>
-                    <Ionicons name="open-outline" size={12} color="#FFCC00" />
-                  </View>
-                </Pressable>
-              ))
+              quickRates.map((item, idx) => {
+                // Bepul foydalanuvchi faqat 2 ta arzon taksini ko'radi, qolgani qulflangan
+                const locked = !isPremium && idx >= 2;
+                return (
+                  <Pressable
+                    key={idx}
+                    style={({ pressed }) => [styles.rateRow, pressed && { opacity: 0.55 }]}
+                    onPress={() =>
+                      locked
+                        ? openPaywall(
+                            "Taksilar qulflangan",
+                            "Barcha taksilar narxini ko'rish uchun obuna bo'ling. Bepul rejimda 2 ta eng arzon taksi ko'rinadi."
+                          )
+                        : openBrandApp(item)
+                    }
+                    hitSlop={6}
+                  >
+                    <View style={[styles.rateLeftGroup, locked && { opacity: 0.5 }]}>
+                      <ServiceLogo
+                        code={BRAND_CODE[item.code] || item.code}
+                        uri={data?.results?.find((x) =>
+                          x.service.code.toLowerCase().startsWith(BRAND_CODE[item.code] || item.code)
+                        )?.service.logo}
+                        size={26}
+                      />
+                      <Text style={[styles.serviceNameTxt, { color: textPrimary }]}>{item.name}</Text>
+                    </View>
+                    {locked ? (
+                      <View style={styles.lockedPriceWrap}>
+                        <Text style={[styles.ratePrice, { opacity: 0.15 }]} numberOfLines={1}>
+                          {formatNum(item.price, 0)}
+                        </Text>
+                        <View style={styles.lockedOverlay}>
+                          <Ionicons name="lock-closed" size={11} color="#FFCC00" />
+                          <Text style={styles.lockedTxt}>Obuna</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.rateRightGroup}>
+                        <Text style={styles.ratePrice}>{formatNum(item.price, 0)} so'm</Text>
+                        <Ionicons name="open-outline" size={12} color="#FFCC00" />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })
             )}
           </View>
         </View>
@@ -669,6 +729,7 @@ export function PassengerHome() {
             <View style={styles.tarifRowContainer}>
               {TARIFS.map((t) => {
                 const active = tier === t.key;
+                const locked = !isPremium && t.key !== "econom";
                 return (
                   <Pressable
                     key={t.key}
@@ -676,9 +737,13 @@ export function PassengerHome() {
                       styles.tarifPillBtn,
                       { backgroundColor: cardBg },
                       active && styles.tarifPillBtnActive,
+                      locked && { opacity: 0.7 },
                     ]}
                     onPress={() => handleSelectTarif(t.key)}
                   >
+                    {locked ? (
+                      <Ionicons name="lock-closed" size={11} color="#FFCC00" style={{ marginBottom: 2 }} />
+                    ) : null}
                     <Text style={[styles.tarifPillTxt, active && styles.tarifPillTxtActive]}>
                       {t.label}
                     </Text>
@@ -724,59 +789,30 @@ export function PassengerHome() {
         </View>
       ) : null}
 
-      {/* 6. MANZIL KIRITISH QIDIRUV MODALI */}
-      <Modal visible={pickerModalOpen} animationType="slide" transparent onRequestClose={() => setPickerModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: drawerBg, paddingBottom: insets.bottom + 20, paddingTop: 16 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                {activePickerIndex === "start"
-                  ? "Qayerdan (A nuqta)"
-                  : `Qayerga (${String.fromCharCode(66 + Number(activePickerIndex))} nuqta)`}
-              </Text>
-              <Pressable onPress={() => setPickerModalOpen(false)} hitSlop={12}>
-                <Ionicons name="close" size={26} color={textPrimary} />
-              </Pressable>
-            </View>
+      {/* 6. MANZIL TANLASH — TO'LIQ EKRAN (qidiruv + xaritadan tanlash) */}
+      <AddressInput
+        hideField
+        open={pickerModalOpen}
+        onOpenChange={(v) => setPickerModalOpen(v)}
+        label={
+          activePickerIndex === "start"
+            ? "Qayerdan (A nuqta)"
+            : `Qayerga (${String.fromCharCode(66 + Number(activePickerIndex))} nuqta)`
+        }
+        value={activePickerIndex === "start" ? start : destinations[Number(activePickerIndex)] || null}
+        onChange={(val) => handleConfirmAddress(val)}
+        iconName={activePickerIndex === "start" ? "ellipse" : "location"}
+        iconColor="#FFCC00"
+        showLocate={activePickerIndex === "start"}
+      />
 
-            <View style={{ gap: 14, marginTop: 14 }}>
-              {activePickerIndex === "start" ? (
-                <AddressInput
-                  label="Qayerdan (A nuqta)"
-                  value={start}
-                  onChange={(val) => handleConfirmAddress(val)}
-                  iconName="ellipse"
-                  iconColor="#FFCC00"
-                  showLocate
-                />
-              ) : (
-                <AddressInput
-                  label={`Qayerga (${String.fromCharCode(66 + Number(activePickerIndex))} nuqta)`}
-                  value={destinations[Number(activePickerIndex)]}
-                  onChange={(val) => handleConfirmAddress(val)}
-                  iconName="location"
-                  iconColor="#FFCC00"
-                />
-              )}
-
-              {error ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              ) : null}
-
-              <Pressable
-                style={styles.modalSubmitBtn}
-                onPress={() => {
-                  setPickerModalOpen(false);
-                }}
-              >
-                <Text style={styles.modalSubmitTxt}>Yopish</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* 7. PAYWALL — qulflangan funksiyalar uchun obuna taklifi */}
+      <PaywallSheet
+        visible={paywall}
+        onClose={() => setPaywall(false)}
+        title={paywallInfo.title}
+        message={paywallInfo.message}
+      />
     </View>
   );
 }
@@ -875,6 +911,23 @@ const styles = StyleSheet.create({
   },
   ratePrice: {
     fontSize: 13,
+    fontWeight: "900",
+    color: "#FFCC00",
+  },
+  lockedPriceWrap: {
+    minWidth: 62,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  lockedTxt: {
+    fontSize: 11,
     fontWeight: "900",
     color: "#FFCC00",
   },

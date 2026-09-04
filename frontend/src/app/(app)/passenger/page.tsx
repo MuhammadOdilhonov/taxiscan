@@ -9,9 +9,11 @@ import { TierPicker } from "@/components/TierPicker";
 import type { Tier } from "@/lib/api/types";
 import { Map, type MarkerPoint, type RoutePath } from "@/components/map/Map";
 import { Spinner } from "@/components/ui/Spinner";
-import { ArrowDownUp, MapPin, Navigation, Search, Info, Crosshair, Plus, Trash2 } from "lucide-react";
+import { ArrowDownUp, MapPin, Navigation, Search, Info, Crosshair, Plus, Trash2, Lock } from "lucide-react";
 import { formatNum, formatUzs } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
+import { useIsPremium, canSearchToday, markSearchUsed, FREE_VISIBLE_SERVICES } from "@/lib/subscription";
+import { PaywallModal } from "@/components/PaywallModal";
 
 interface RouteFromApi {
   id: number;
@@ -56,6 +58,9 @@ const TIER_LABEL: Record<string, string> = {
 
 export default function PassengerHome() {
   const { isDark } = useTheme();
+  const isPremium = useIsPremium();
+  const [paywall, setPaywall] = useState<{ title: string; message: string } | null>(null);
+  const openPaywall = (title: string, message: string) => setPaywall({ title, message });
   const [start, setStart] = useState<AddressValue | null>(null);
   const [end, setEnd] = useState<AddressValue | null>(null);
   // Oraliq to'xtashlar (A → B → C) — ko'pi bilan 3 ta
@@ -103,6 +108,14 @@ export default function PassengerHome() {
       setError("Boshlang'ich va manzil kiriting");
       return;
     }
+    // Bepul foydalanuvchi — kuniga 1 marta qidiruv
+    if (!canSearchToday()) {
+      openPaywall(
+        "Kunlik limit tugadi",
+        "Bepul rejimda kuniga faqat 1 marta narx qidirish mumkin. Cheksiz qidirish uchun obuna bo'ling."
+      );
+      return;
+    }
     setLoading(true);
     setError(null);
     setPickupOnly(null); // "Narxlarni ko'rish" bosilganda taxminiy pickup natijasi yo'qoladi
@@ -119,6 +132,7 @@ export default function PassengerHome() {
       });
       setData(r);
       setSelectedRouteId(0);
+      markSearchUsed();
     } catch (err: any) {
       setError(err?.data?.detail || "Narxni hisoblab bo'lmadi");
     } finally {
@@ -166,7 +180,17 @@ export default function PassengerHome() {
   //     oxirgi harf = yakuniy manzil (end). 0 to'xtash → A→B, 1 to'xtash → A→B→C ———
   const stopLetter = (i: number) => String.fromCharCode(66 + i); // B, C, D
   const endLetter = String.fromCharCode(66 + stops.length); // B / C / D / E
-  const addStop = () => setStops((s) => (s.length >= 3 ? s : [...s, null]));
+  const addStop = () => {
+    // Bepul foydalanuvchi faqat A va B nuqta qo'ya oladi
+    if (!isPremium) {
+      openPaywall(
+        "Qo'shimcha manzil qulflangan",
+        "Bepul rejimda faqat A va B nuqta mavjud. Bir nechta manzil (C, D...) obuna bilan ishlaydi."
+      );
+      return;
+    }
+    setStops((s) => (s.length >= 3 ? s : [...s, null]));
+  };
   const updateStop = (i: number, v: AddressValue | null) =>
     setStops((s) => s.map((x, idx) => (idx === i ? v : x)));
   const removeStop = (i: number) => setStops((s) => s.filter((_, idx) => idx !== i));
@@ -193,8 +217,11 @@ export default function PassengerHome() {
   });
   if (end) markers.push({ lat: end.lat, lng: end.lng, type: "end", stopLabel: endLetter, label: end.label });
 
-  // Faqat 1 va 2-yo'l
-  const twoRoutes = useMemo(() => (data?.routes || []).slice(0, 2), [data]);
+  // Faqat 1 va 2-yo'l (bepul foydalanuvchi faqat 1 ta yo'lni ko'radi)
+  const twoRoutes = useMemo(
+    () => (data?.routes || []).slice(0, isPremium ? 2 : 1),
+    [data, isPremium]
+  );
 
   // Xarita uchun yo'l chiziqlari — tanlangani ajralib turadi
   const mapRoutes: RoutePath[] = useMemo(
@@ -281,7 +308,7 @@ export default function PassengerHome() {
               </button>
               {stops.length < 3 && (
                 <button onClick={addStop} className="btn-outline h-10 text-xs" title="Oraliq to'xtash qo'shish">
-                  <Plus size={14} /> To'xtash qo'shish
+                  {isPremium ? <Plus size={14} /> : <Lock size={13} />} To'xtash qo'shish
                 </button>
               )}
             </div>
@@ -413,7 +440,18 @@ export default function PassengerHome() {
           <h3 className="text-xs font-extrabold text-ink-muted uppercase tracking-wider mb-2 px-1">
             Tarifni tanlang
           </h3>
-          <TierPicker rows={data?.results} selected={tier} onSelect={setTier} />
+          <TierPicker
+            rows={data?.results}
+            selected={tier}
+            onSelect={setTier}
+            isPremium={isPremium}
+            onLocked={() =>
+              openPaywall(
+                "Tarif qulflangan",
+                "Comfort, Comfort+ va Biznes tariflari obuna bilan ochiladi. Bepul rejimda faqat Start tarifi mavjud."
+              )
+            }
+          />
         </div>
 
         {/* Pickup-only quote natijasi */}
@@ -433,6 +471,10 @@ export default function PassengerHome() {
               end={pickupOnly.end}
               showBreakdown={false}
               sortMode="cheap-first"
+              freeLimit={isPremium ? undefined : FREE_VISIBLE_SERVICES}
+              onUpgrade={() =>
+                openPaywall("Taksilar qulflangan", "Barcha taksilar narxini ko'rish uchun obuna bo'ling.")
+              }
             />
           </div>
         )}
@@ -483,6 +525,10 @@ export default function PassengerHome() {
             start={start ? { lat: start.lat, lng: start.lng } : { lat: 0, lng: 0 }}
             end={end ? { lat: end.lat, lng: end.lng } : null}
             sortMode="cheap-first"
+            freeLimit={isPremium ? undefined : FREE_VISIBLE_SERVICES}
+            onUpgrade={() =>
+              openPaywall("Taksilar qulflangan", "Barcha taksilar narxini ko'rish uchun obuna bo'ling.")
+            }
           />
         )}
 
@@ -493,6 +539,13 @@ export default function PassengerHome() {
           </div>
         )}
       </div>
+
+      <PaywallModal
+        open={!!paywall}
+        onClose={() => setPaywall(null)}
+        title={paywall?.title}
+        message={paywall?.message}
+      />
     </div>
   );
 }

@@ -53,14 +53,11 @@ export default function PickerLeaflet({
       scrollWheelZoom
     >
       <TileLayer
-        attribution="&copy; OpenStreetMap &copy; CARTO"
-        url={
-          dark
-            ? "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png"
-            : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        }
-        subdomains={["a", "b", "c", "d"]}
+        attribution="&copy; OpenStreetMap"
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        subdomains={["a", "b", "c"]}
         maxZoom={19}
+        className={dark ? "tn-dark-tiles" : ""}
       />
       <CenterWatcher onMove={onMove} onMoveStart={onMoveStart} />
       <Recenter target={recenterTo} />

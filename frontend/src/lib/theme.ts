@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useAuth } from "@/lib/store/auth";
 
 export type Theme = "light" | "dark" | "auto";
 
@@ -24,25 +25,32 @@ export function initTheme() {
 
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>("auto");
+  // Obuna faolmi — bepul foydalanuvchida tungi rejim yopiq (faqat kunduzgi)
+  const isPremium = useAuth((s) => Boolean(s.user?.subscription?.is_active));
 
   useEffect(() => {
     const saved = (localStorage.getItem(KEY) as Theme) || "auto";
     setThemeState(saved);
-    applyTheme(saved);
-  }, []);
+    applyTheme(isPremium ? saved : "light");
+  }, [isPremium]);
 
-  const setTheme = useCallback((t: Theme) => {
-    localStorage.setItem(KEY, t);
-    setThemeState(t);
-    applyTheme(t);
-  }, []);
+  const setTheme = useCallback(
+    (t: Theme) => {
+      localStorage.setItem(KEY, t);
+      setThemeState(t);
+      applyTheme(isPremium ? t : "light");
+    },
+    [isPremium]
+  );
 
-  const isDark =
+  const rawDark =
     theme === "dark" ||
     (theme === "auto" &&
       typeof window !== "undefined" &&
       window.matchMedia &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const isDark = isPremium ? rawDark : false;
 
   return { theme, setTheme, isDark };
 }

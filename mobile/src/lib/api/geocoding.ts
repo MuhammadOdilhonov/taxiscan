@@ -8,6 +8,8 @@ export interface GeocodeResult {
 
 export interface SearchResult {
   label: string;
+  /** Ikkinchi qator: tuman/shahar (masalan "Chilonzor tumani") */
+  detail?: string;
   lat: number;
   lng: number;
   type?: string;
@@ -62,12 +64,16 @@ export function shortenLabel(s: string): string {
 
 /** Toshkentdagi mashhur joylar (offline preset) */
 export const TASHKENT_PRESETS: SearchResult[] = [
-  { label: "Mirobod tumani", lat: 41.296, lng: 69.281 },
-  { label: "Yunusobod tumani", lat: 41.366, lng: 69.288 },
-  { label: "Chilonzor tumani", lat: 41.275, lng: 69.203 },
-  { label: "Mirzo Ulug'bek tumani", lat: 41.336, lng: 69.336 },
-  { label: "Toshkent xalqaro aeroporti", lat: 41.257, lng: 69.281 },
-  { label: "Chorsu bozori", lat: 41.327, lng: 69.232 },
-  { label: "Tashkent City parki", lat: 41.317, lng: 69.272 },
-  { label: "Magic City parki", lat: 41.341, lng: 69.205 },
+  { label: "Toshkent xalqaro aeroporti", detail: "Yashnobod tumani", lat: 41.2579, lng: 69.2817 },
+  { label: "Toshkent (Shimoliy) temir yo'l vokzali", detail: "Yunusobod tumani", lat: 41.3199, lng: 69.2867 },
+  { label: "Chorsu bozori", detail: "Shayxontohur tumani", lat: 41.3266, lng: 69.2350 },
+  { label: "Tashkent City parki", detail: "Shayxontohur tumani", lat: 41.3167, lng: 69.2717 },
+  { label: "Magic City parki", detail: "Chilonzor tumani", lat: 41.2846, lng: 69.2043 },
+  { label: "Mustaqillik maydoni", detail: "Mirzo Ulug'bek tumani", lat: 41.3111, lng: 69.2797 },
+  { label: "Amir Temur xiyoboni", detail: "Mirzo Ulug'bek tumani", lat: 41.3115, lng: 69.2795 },
+  { label: "Alay bozori", detail: "Mirobod tumani", lat: 41.3096, lng: 69.2905 },
+  { label: "Samarqand darvoza savdo markazi", detail: "Olmazor tumani", lat: 41.3382, lng: 69.2419 },
+  { label: "Compass savdo markazi", detail: "Yunusobod tumani", lat: 41.3536, lng: 69.2896 },
+  { label: "Next savdo markazi", detail: "Yunusobod tumani", lat: 41.3634, lng: 69.2882 },
+  { label: "Oybek metro bekati", detail: "Mirobod tumani", lat: 41.2990, lng: 69.2724 },
 ];

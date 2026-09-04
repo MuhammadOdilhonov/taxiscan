@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,14 @@ import {
   type SearchResult,
 } from "@/lib/api/geocoding";
 import { MapPicker } from "@/components/MapPicker";
+import { getRecentAddresses, addRecentAddress } from "@/lib/recentAddresses";
+
+/** Label + detail (tuman) qatorini bitta manzil nomiga birlashtiradi. */
+function joinLabel(label: string, detail?: string): string {
+  const l = shortenLabel(label);
+  if (!detail) return l;
+  return l.toLowerCase().includes(detail.toLowerCase()) ? l : `${l}, ${detail}`;
+}
 
 export interface AddressValue {
   label: string;
@@ -35,6 +43,9 @@ export function AddressInput({
   iconName = "location-outline",
   iconColor,
   showLocate = false,
+  hideField = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   label: string;
   value: AddressValue | null;
@@ -42,15 +53,35 @@ export function AddressInput({
   iconName?: keyof typeof Ionicons.glyphMap;
   iconColor?: string;
   showLocate?: boolean;
+  /** Kiritish maydonini yashirish (tashqi tugmadan boshqariladi) */
+  hideField?: boolean;
+  /** Tashqaridan boshqariladigan ochiq holat */
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = controlledOpen ?? openState;
+  const setOpen = (v: boolean) => {
+    if (controlledOpen === undefined) setOpenState(v);
+    onOpenChange?.(v);
+  };
   const [mapOpen, setMapOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [recents, setRecents] = useState<AddressValue[]>([]);
+
+  // Modal ochilganda so'nggi tanlangan manzillarni yuklaymiz va qidiruvni tozalaymiz
+  useEffect(() => {
+    if (open) {
+      getRecentAddresses().then(setRecents);
+      setQuery("");
+      setResults([]);
+    }
+  }, [open]);
 
   const onTyping = (text: string) => {
     setQuery(text);
@@ -70,6 +101,14 @@ export function AddressInput({
     setOpen(false);
     setQuery("");
     setResults([]);
+    addRecentAddress(v);
+    setRecents((prev) => {
+      const same = (a: AddressValue) =>
+        a.label === v.label &&
+        Math.abs(a.lat - v.lat) < 0.0002 &&
+        Math.abs(a.lng - v.lng) < 0.0002;
+      return [v, ...prev.filter((a) => !same(a))].slice(0, 8);
+    });
   };
 
   const useCurrentLocation = async () => {
@@ -95,29 +134,62 @@ export function AddressInput({
     }
   };
 
-  const presets = query.trim()
-    ? TASHKENT_PRESETS.filter((p) => p.label.toLowerCase().includes(query.toLowerCase()))
-    : TASHKENT_PRESETS;
+  // Ro'yxat qatorlari: sarlavha yoki manzil
+  type Row =
+    | { kind: "header"; title: string }
+    | { kind: "item"; icon: keyof typeof Ionicons.glyphMap; label: string; detail?: string; lat: number; lng: number };
+
+  const rows: Row[] = [];
+  if (results.length > 0) {
+    rows.push({ kind: "header", title: "QIDIRUV NATIJASI" });
+    for (const r of results) {
+      rows.push({ kind: "item", icon: "location", label: shortenLabel(r.label), detail: r.detail, lat: r.lat, lng: r.lng });
+    }
+  } else {
+    const q = query.trim().toLowerCase();
+    const recentFiltered = q
+      ? recents.filter((r) => r.label.toLowerCase().includes(q))
+      : recents;
+    if (recentFiltered.length > 0) {
+      rows.push({ kind: "header", title: "SO'NGGI MANZILLAR" });
+      for (const r of recentFiltered) {
+        rows.push({ kind: "item", icon: "time-outline", label: r.label, lat: r.lat, lng: r.lng });
+      }
+    }
+    const presetFiltered = q
+      ? TASHKENT_PRESETS.filter((p) => (p.label + " " + (p.detail || "")).toLowerCase().includes(q))
+      : TASHKENT_PRESETS;
+    if (presetFiltered.length > 0) {
+      rows.push({ kind: "header", title: "MASHHUR JOYLAR" });
+      for (const p of presetFiltered) {
+        rows.push({ kind: "item", icon: "location", label: p.label, detail: p.detail, lat: p.lat, lng: p.lng });
+      }
+    }
+  }
 
   return (
     <View>
-      <Text style={[styles.label, { color: colors.inkMuted }]}>{label}</Text>
-      <Pressable
-        onPress={() => setOpen(true)}
-        style={[styles.field, { backgroundColor: colors.card, borderColor: colors.line }]}
-      >
-        <Ionicons name={iconName} size={18} color={iconColor || colors.inkMuted} />
-        <Text
-          style={[
-            styles.fieldText,
-            { color: value ? colors.ink : colors.inkMuted },
-          ]}
-          numberOfLines={1}
-        >
-          {value ? value.label : "Manzil yoki joy nomini tanlang..."}
-        </Text>
-        <Ionicons name="chevron-forward" size={16} color={colors.inkMuted} />
-      </Pressable>
+      {!hideField ? (
+        <>
+          <Text style={[styles.label, { color: colors.inkMuted }]}>{label}</Text>
+          <Pressable
+            onPress={() => setOpen(true)}
+            style={[styles.field, { backgroundColor: colors.card, borderColor: colors.line }]}
+          >
+            <Ionicons name={iconName} size={18} color={iconColor || colors.inkMuted} />
+            <Text
+              style={[
+                styles.fieldText,
+                { color: value ? colors.ink : colors.inkMuted },
+              ]}
+              numberOfLines={1}
+            >
+              {value ? value.label : "Manzil yoki joy nomini tanlang..."}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.inkMuted} />
+          </Pressable>
+        </>
+      ) : null}
 
       <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
         <View style={[styles.modal, { backgroundColor: colors.bg, paddingTop: insets.top + 8 }]}>
@@ -169,26 +241,34 @@ export function AddressInput({
           </View>
 
           <FlatList
-            data={[...results, ...presets]}
-            keyExtractor={(item, i) => `${item.label}-${i}`}
+            data={rows}
+            keyExtractor={(item, i) => (item.kind === "header" ? `h-${item.title}` : `${item.label}-${i}`)}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-            ListHeaderComponent={
-              <Text style={[styles.sectionLabel, { color: colors.inkMuted }]}>
-                {results.length > 0 ? "QIDIRUV NATIJASI" : "MASHHUR JOYLAR"}
-              </Text>
+            renderItem={({ item }) =>
+              item.kind === "header" ? (
+                <Text style={[styles.sectionLabel, { color: colors.inkMuted }]}>{item.title}</Text>
+              ) : (
+                <Pressable
+                  onPress={() =>
+                    pick({ label: joinLabel(item.label, item.detail), lat: item.lat, lng: item.lng })
+                  }
+                  style={[styles.resultRow, { borderBottomColor: colors.line }]}
+                >
+                  <Ionicons name={item.icon} size={16} color={colors.brandDark} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.resultText, { color: colors.ink }]} numberOfLines={2}>
+                      {item.label}
+                    </Text>
+                    {item.detail ? (
+                      <Text style={[styles.resultDetail, { color: colors.inkMuted }]} numberOfLines={1}>
+                        {item.detail}
+                      </Text>
+                    ) : null}
+                  </View>
+                </Pressable>
+              )
             }
-            renderItem={({ item }) => (
-              <Pressable
-                onPress={() => pick({ label: shortenLabel(item.label), lat: item.lat, lng: item.lng })}
-                style={[styles.resultRow, { borderBottomColor: colors.line }]}
-              >
-                <Ionicons name="location" size={16} color={colors.brandDark} />
-                <Text style={[styles.resultText, { color: colors.ink }]} numberOfLines={2}>
-                  {shortenLabel(item.label)}
-                </Text>
-              </Pressable>
-            )}
           />
         </View>
       </Modal>
@@ -264,5 +344,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  resultText: { flex: 1, fontSize: 15, lineHeight: 20 },
+  resultText: { fontSize: 15, lineHeight: 20 },
+  resultDetail: { fontSize: 12, marginTop: 2 },
 });

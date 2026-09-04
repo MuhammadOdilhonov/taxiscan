@@ -33,12 +33,14 @@ export function MapPicker({
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapWebViewHandle>(null);
 
-  const start = initial
-    ? { lat: initial.lat, lng: initial.lng }
+  // lat/lng 0 bo'lsa (bo'sh manzil) — initial yo'q deb hisoblaymiz (aks holda okean markazda turadi)
+  const hasInitial = Boolean(initial && initial.lat !== 0 && initial.lng !== 0);
+  const start = hasInitial
+    ? { lat: initial!.lat, lng: initial!.lng }
     : { lat: 41.311, lng: 69.279 };
 
   const [center, setCenter] = useState(start);
-  const [label, setLabel] = useState<string>(initial?.label || "");
+  const [label, setLabel] = useState<string>(hasInitial ? initial?.label || "" : "");
   const [geoLoading, setGeoLoading] = useState(false);
   const [locating, setLocating] = useState(false);
 
@@ -67,7 +69,7 @@ export function MapPicker({
 
   // Modal ochilganda joriy joyni so'rab markazlash (faqat initial yo'q bo'lsa)
   useEffect(() => {
-    if (visible && !initial) {
+    if (visible && !hasInitial) {
       goToCurrentLocation(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,7 +122,7 @@ export function MapPicker({
             mode="picker"
             isDark={isDark}
             center={start}
-            zoom={initial ? 16 : 14}
+            zoom={hasInitial ? 16 : 14}
             onCenterChange={handleCenter}
             style={styles.flex}
           />

@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/Badge";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/store/auth";
 import { apiPost, apiPatch, apiUpload } from "@/lib/api/client";
+import { useIsPremium } from "@/lib/subscription";
+import { PaywallSheet } from "@/components/PaywallSheet";
 
 export function ProfileScreen() {
   const { colors, mode, setMode } = useTheme();
@@ -21,8 +23,10 @@ export function ProfileScreen() {
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.logout);
   const loadMe = useAuth((s) => s.loadMe);
+  const isPremium = useIsPremium();
   const [pwOpen, setPwOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [paywall, setPaywall] = useState(false);
 
   const fullName =
     user?.full_name ||
@@ -105,19 +109,26 @@ export function ProfileScreen() {
         <View style={styles.themeRow}>
           {themeOptions.map((o) => {
             const sel = mode === o.key;
+            // Bepul foydalanuvchi faqat "Yorug'" (light) rejimni tanlay oladi
+            const locked = !isPremium && o.key !== "light";
             return (
               <Pressable
                 key={o.key}
-                onPress={() => setMode(o.key)}
+                onPress={() => (locked ? setPaywall(true) : setMode(o.key))}
                 style={[
                   styles.themeBtn,
                   {
                     backgroundColor: sel ? colors.brand : colors.cardAlt,
                     borderColor: sel ? colors.ink : "transparent",
+                    opacity: locked ? 0.6 : 1,
                   },
                 ]}
               >
-                <Ionicons name={o.icon} size={18} color={sel ? "#0F1216" : colors.inkMuted} />
+                <Ionicons
+                  name={locked ? "lock-closed" : o.icon}
+                  size={18}
+                  color={sel ? "#0F1216" : colors.inkMuted}
+                />
                 <Text style={{ color: sel ? "#0F1216" : colors.ink, fontWeight: "800", fontSize: 13, marginTop: 4 }}>
                   {o.label}
                 </Text>
@@ -125,6 +136,11 @@ export function ProfileScreen() {
             );
           })}
         </View>
+        {!isPremium ? (
+          <Text style={{ color: colors.inkMuted, fontSize: 11, marginTop: 10 }}>
+            Tungi rejim faqat obuna bilan ishlaydi.
+          </Text>
+        ) : null}
       </Card>
 
       <Card padded>
@@ -171,6 +187,12 @@ export function ProfileScreen() {
         onSaved={() => loadMe().catch(() => {})}
       />
       <ChangePasswordModal visible={pwOpen} onClose={() => setPwOpen(false)} colors={colors} />
+      <PaywallSheet
+        visible={paywall}
+        onClose={() => setPaywall(false)}
+        title="Tungi rejim — obuna bilan"
+        message="Qorong'i (tungi) rejim va boshqa imkoniyatlar obuna orqali ochiladi."
+      />
     </Screen>
   );
 }

@@ -50,9 +50,9 @@ interface Props {
 function buildHtml(props: Props): string {
   const { mode, isDark, center, zoom = 15, markers = [], routes = [], zones = [], userLoc = null } = props;
   const c = center || TASHKENT;
-  const tiles = isDark
-    ? "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+  // Kalitsiz (tekin) OpenStreetMap plitkalari. Qorong'i rejimda CSS filtr bilan
+  // xaritani qoraytiramiz — CartoCDN endi API kalit talab qiladi ("API KEY REQUIRED").
+  const tiles = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   const markersJson = JSON.stringify(markers);
   const routesJson = JSON.stringify(routes);
@@ -87,6 +87,13 @@ function buildHtml(props: Props): string {
   html, body, #map { height: 100%; margin: 0; padding: 0; background: ${isDark ? "#0A0D11" : "#e8eaed"}; touch-action: auto; }
   .leaflet-control-attribution { display: none; }
   .leaflet-container { background: ${isDark ? "#0A0D11" : "#e8eaed"}; }
+  ${isDark
+    ? `.leaflet-tile {
+         /* OSM plitkalarini "Dark Matter" uslubiga yaqin — neytral, mu'tadil qora xaritaga aylantiradi.
+            saturate(0.5) ranglarni bosadi (suv/parklar g'alati chiqmaydi), brightness/contrast qoraytiradi. */
+         filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92) saturate(0.5) sepia(0.08);
+       }`
+    : ""}
   #pin {
     position: fixed; left: 50%; top: 50%;
     transform: translate(-50%, -100%);
@@ -117,9 +124,10 @@ ${pinHtml}
   var post = function(o){ if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(o)); };
   var map = L.map('map', { zoomControl: false, attributionControl: false, touchZoom: true, dragging: true })
             .setView([${c.lat}, ${c.lng}], ${zoom});
-  L.tileLayer('${tiles}', { subdomains: ['a','b','c','d'], maxZoom: 19 }).addTo(map);
+  L.tileLayer('${tiles}', { subdomains: ['a','b','c'], maxZoom: 19 }).addTo(map);
 
   var MODE = '${mode}';
+  var SHOW_PIN = ${showCenterPin ? "true" : "false"};
   var markers = ${markersJson};
   var routes = ${routesJson};
   var zones = ${zonesJson};
@@ -221,7 +229,7 @@ ${pinHtml}
     }
   }
 
-  if (MODE === 'picker' && showCenterPin) {
+  if (MODE === 'picker' && SHOW_PIN) {
     var lastLat = null, lastLng = null, emitTimer = null;
     var emit = function(){
       var ctr = map.getCenter();

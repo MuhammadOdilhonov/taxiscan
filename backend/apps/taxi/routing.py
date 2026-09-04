@@ -372,7 +372,13 @@ def _yandex_reverse(lat, lng):
     # `name` — qisqa nom (ko'cha + uy), `text` — to'liq manzil
     label = meta.get("text") or obj.get("name") or f"{lat:.4f}, {lng:.4f}"
     short = obj.get("name") or label
-    return {"label": short, "full": label, "address": {}}
+    # Ruscha/kirillcha nomni o'zbekchaga o'girish: "улица Сайилгох, 35/2" -> "Sayilgox ko'chasi, 35/2"
+    parts = [p.strip() for p in short.split(",") if p.strip()]
+    if parts:
+        parts[0] = _street_uz(parts[0]) or _translit(parts[0])
+        parts[1:] = [_translit(p) for p in parts[1:]]
+        short = ", ".join(p for p in parts if p)
+    return {"label": short or f"{lat:.4f}, {lng:.4f}", "full": _translit(label), "address": {}}
 
 
 def _yandex_search(query, city="Tashkent"):
@@ -412,8 +418,9 @@ def _yandex_search(query, city="Tashkent"):
             return next((c.get("name", "") for c in comps if c.get("kind") == k), "")
 
         # Manzil turidagi natijada (uy/ko'cha) obj.name allaqachon "ko'cha, uy" bo'ladi —
-        # POI bo'lsa nomi alohida, ko'cha/uy komponentlardan olinadi
-        name = obj.get("name", "") if kind not in ("house", "street", "locality", "district") else ""
+        # POI/tuman/mahalla bo'lsa esa obj.name asosiy nom sifatida ishlatiladi
+        # (aks holda label "Узбекистан, Ташкент" kabi umumiy matnga tushib qoladi).
+        name = obj.get("name", "") if kind not in ("house", "street") else ""
         fmt = _compose_result(
             name=name,
             road=comp("street"),

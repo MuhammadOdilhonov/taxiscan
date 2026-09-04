@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://backend.taxiscan.app/api/v1";
 
 const ACCESS_KEY = "tn_access";
 const REFRESH_KEY = "tn_refresh";

@@ -13,6 +13,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/theme";
 import { useAuth } from "@/store/auth";
+import { useIsPremium } from "@/lib/subscription";
 
 const LOGO = require("@/assets/logo.png");
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -33,6 +34,7 @@ export function AppDrawer({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const user = useAuth((s) => s.user);
+  const isPremium = useIsPremium();
 
   const isDriver = user?.role === "driver";
   const roleLabel = isDriver ? "Haydovchi" : user?.role === "admin" ? "Admin" : "Yo'lovchi";
@@ -112,8 +114,8 @@ export function AppDrawer({
               <Ionicons name="chevron-forward" size={18} color={textMuted} />
             </Pressable>
 
-            {/* STATISTIKA — faqat haydovchi uchun */}
-            {isDriver ? (
+            {/* STATISTIKA — faqat obunali haydovchi uchun */}
+            {isDriver && isPremium ? (
               <Pressable
                 style={[styles.menuItem, { backgroundColor: inputBg }]}
                 onPress={() => go("/(tabs)/stats")}

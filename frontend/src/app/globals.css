@@ -96,3 +96,9 @@ html, body {
 /* Hide scrollbar while keeping functionality */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+
+/* Qorong'i rejim uchun OSM plitkalarini "Dark Matter"ga yaqin neytral qora xaritaga aylantiradi
+   (CartoCDN endi API kalit talab qiladi — kalitsiz OSM + CSS filtr ishlatamiz). */
+.tn-dark-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92) saturate(0.5) sepia(0.08);
+}

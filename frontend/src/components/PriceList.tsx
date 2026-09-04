@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { ServiceLogo } from "@/components/ui/ServiceLogo";
 import { formatUzs, formatNum } from "@/lib/format";
-import { ExternalLink, Sparkles, ChevronDown, Maximize2 } from "lucide-react";
+import { ExternalLink, Sparkles, ChevronDown, Maximize2, Lock } from "lucide-react";
 import { openTaxiApp } from "@/lib/openTaxiApp";
 
 interface ServiceInfo {
@@ -66,6 +66,8 @@ export function PriceList({
   sortMode = "cheap-first",
   onRowClick,
   highlightMode = "cheapest",
+  freeLimit,
+  onUpgrade,
 }: {
   rows: PriceRow[];
   start: { lat: number; lng: number };
@@ -79,6 +81,9 @@ export function PriceList({
   // Qaysi qatorni ajratib ko'rsatish: yo'lovchida "cheapest" (eng arzon),
   // haydovchida "expensive" (eng ko'p to'laydigan)
   highlightMode?: "cheapest" | "expensive";
+  // Bepul foydalanuvchi uchun — shu indeksdan keyingi qatorlar qulflanadi
+  freeLimit?: number;
+  onUpgrade?: () => void;
 }) {
   const [openId, setOpenId] = useState<number | null>(null);
 
@@ -127,10 +132,37 @@ export function PriceList({
     );
   }
 
-  const renderRow = (r: PriceRow) => {
+  const renderRow = (r: PriceRow, locked = false) => {
     const isOpen = openId === r.service.id;
     const tierLabel = r.service.tier ? TIER_LABELS[r.service.tier] : null;
-    const isHighlighted = r.service.id === highlightId;
+    const isHighlighted = !locked && r.service.id === highlightId;
+    if (locked) {
+      return (
+        <div
+          key={r.service.id}
+          onClick={onUpgrade}
+          className="relative card-hover overflow-hidden animate-slide-up cursor-pointer"
+        >
+          <div className="p-4 flex items-center gap-4">
+            <ServiceLogo code={r.service.code} color={r.service.color} size={44} />
+            <div className="flex-1 min-w-0 opacity-60">
+              <h3 className="font-bold text-ink truncate">{r.service.name}</h3>
+              <div className="text-xs text-ink-muted mt-0.5">
+                {formatNum(r.distance_km, 1)} km • {formatNum(r.duration_min, 0)} daq
+              </div>
+            </div>
+            <div className="text-right shrink-0 relative">
+              <div className="text-xl font-extrabold text-ink blur-[6px] select-none">
+                {formatUzs(r.price_uzs)}
+              </div>
+              <div className="absolute inset-0 flex items-center justify-end gap-1 text-brand-700 font-bold text-sm">
+                <Lock size={13} /> Obuna
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div
         key={r.service.id}
@@ -247,14 +279,18 @@ export function PriceList({
               <h2 className="text-sm font-extrabold text-ink uppercase tracking-wider">{brand}</h2>
               <span className="text-xs text-ink-muted">({grouped[brand].length} tarif)</span>
             </div>
-            <div className="space-y-2">{grouped[brand].map(renderRow)}</div>
+            <div className="space-y-2">{grouped[brand].map((r) => renderRow(r))}</div>
           </div>
         ))}
       </div>
     );
   }
 
-  return <div className="space-y-2.5">{sorted.map(renderRow)}</div>;
+  return (
+    <div className="space-y-2.5">
+      {sorted.map((r, i) => renderRow(r, freeLimit != null && i >= freeLimit))}
+    </div>
+  );
 }
 
 function Row({ label, value, accent = false }: { label: string; value: number; accent?: boolean }) {
