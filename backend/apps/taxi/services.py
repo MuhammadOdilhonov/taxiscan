@@ -199,6 +199,9 @@ def aggregate_estimates(
         if already_saved_recently:
             save = False
 
+    # Ob-havo keshini bir marta isitamiz — parallel narx so'rovlari kesh'dan oladi
+    wx_boost, wx_reason, wx_info = weather_surge()
+
     # Bitta qidiruv = bitta ID: barcha brend yozuvlari shu ID bilan bog'lanadi,
     # demand statistikasi esa yozuvlarni emas, unikal qidiruvlarni sanaydi
     search_id = uuid.uuid4() if save else None
