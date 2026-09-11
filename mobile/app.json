@@ -32,7 +32,62 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "geo"
+            }
+          ],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "https",
+              "host": "maps.google.com"
+            },
+            {
+              "scheme": "http",
+              "host": "maps.google.com"
+            },
+            {
+              "scheme": "https",
+              "host": "*.google.com",
+              "pathPrefix": "/maps"
+            }
+          ],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "https",
+              "host": "yandex.uz",
+              "pathPrefix": "/maps"
+            },
+            {
+              "scheme": "https",
+              "host": "yandex.ru",
+              "pathPrefix": "/maps"
+            }
+          ],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

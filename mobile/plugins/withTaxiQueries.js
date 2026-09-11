@@ -41,6 +41,40 @@ const withTaxiQueries = (config) => {
       })),
     });
 
+    // Telegram, WhatsApp va tizimdan lokatsiya kelganda "Complete action using"
+    // ro'yxatida TaxiScan ham chiqishi uchun MainActivity'ga <intent-filter> qo'shamiz
+    if (
+      manifest.application &&
+      manifest.application[0] &&
+      Array.isArray(manifest.application[0].activity)
+    ) {
+      const mainActivity = manifest.application[0].activity.find(
+        (a) => a.$ && a.$["android:name"] === ".MainActivity"
+      );
+      if (mainActivity) {
+        if (!Array.isArray(mainActivity["intent-filter"])) {
+          mainActivity["intent-filter"] = [];
+        }
+
+        const hasGeo = mainActivity["intent-filter"].some(
+          (f) =>
+            Array.isArray(f.data) &&
+            f.data.some((d) => d.$ && d.$["android:scheme"] === "geo")
+        );
+
+        if (!hasGeo) {
+          mainActivity["intent-filter"].push({
+            action: [{ $: { "android:name": "android.intent.action.VIEW" } }],
+            category: [
+              { $: { "android:name": "android.intent.category.DEFAULT" } },
+              { $: { "android:name": "android.intent.category.BROWSABLE" } },
+            ],
+            data: [{ $: { "android:scheme": "geo" } }],
+          });
+        }
+      }
+    }
+
     return config;
   });
 };

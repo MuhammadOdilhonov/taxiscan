@@ -106,9 +106,34 @@ class PaymeCheckoutView(APIView):
             defaults={"expires_at": timezone.now() + timedelta(days=free_trial_days())},
         )
 
+        from django.conf import settings as dj_settings
+        period_days = int(dj_settings.TAXINARX.get("SUBSCRIPTION_PERIOD_DAYS", 30))
+
         # Promo-kod chegirmasi (bo'lsa) — bir martalik, to'lov o'tgach nollanadi
         base_uzs = subscription_price_uzs(request.user)
         disc = sub.discount_percent or 0
+
+        # Agar 100% chegirma bo'lsa yoki to'lov summasi 0 bo'lsa — to'lovsiz darhol obunani faollashtiramiz!
+        if disc >= 100:
+            sub.extend(days=period_days)
+            sub.discount_percent = 0
+            sub.save(update_fields=["discount_percent"])
+            txn = Transaction.objects.create(
+                user=request.user,
+                subscription=sub,
+                amount_usd=0,
+                amount_uzs=0,
+                status=TransactionStatus.SUCCESS,
+                description=f"Obuna 100% chegirma bilan faollashtirildi ({period_days} kun)",
+            )
+            return Response({
+                "order_id": txn.id,
+                "amount_uzs": 0,
+                "paid": True,
+                "checkout_url": "",
+                "detail": f"Obuna 100% chegirma bilan avtomatik faollashtirildi!",
+            })
+
         amount_uzs = max(1, int(base_uzs * (100 - disc) / 100))
         desc = "TaxiNarx oylik obuna" + (f" ({disc}% promo chegirma)" if disc else "")
 
@@ -136,6 +161,7 @@ class PaymeCheckoutView(APIView):
         return Response({
             "order_id": txn.id,
             "amount_uzs": amount_uzs,
+            "paid": False,
             "checkout_url": checkout_url(txn.id, amount_uzs),
         })
 
@@ -228,22 +254,43 @@ class RedeemPromoView(APIView):
 
         granted_days = 0
         granted_discount = 0
+        is_activated = False
         if promo.reward_type == "discount" and promo.discount_percent >= 100:
-            # 100% chegirma = 1 oy (davr) BEPUL — to'lovsiz darhol qo'shiladi
+            # 100% chegirma = 1 oy (davr) BEPUL — to'lovsiz darhol obuna faollashtiriladi
             sub.extend(days=period_days)
+            sub.discount_percent = 0
+            sub.save(update_fields=["discount_percent"])
             granted_days = period_days
-            detail = f"Tabriklaymiz! Sizga {period_days} kun (1 oy) BEPUL obuna berildi."
+            is_activated = True
+            detail = f"Tabriklaymiz! 100% chegirmali promo-kod orqali {period_days} kunlik obuna avtomatik faollashtirildi!"
+            Transaction.objects.create(
+                user=request.user,
+                subscription=sub,
+                amount_usd=0,
+                amount_uzs=0,
+                status=TransactionStatus.SUCCESS,
+                description=f"Promo-kod ({promo.code}): 100% chegirma bilan obuna faollashtirildi ({period_days} kun)",
+            )
         elif promo.reward_type == "discount":
             # Qisman chegirma — keyingi obuna to'loviga bir marta qo'llanadi
             sub.discount_percent = min(100, promo.discount_percent)
             sub.save(update_fields=["discount_percent"])
             granted_discount = promo.discount_percent
-            detail = f"Chegirma faollashtirildi! Keyingi obuna to'lovida {promo.discount_percent}% chegirma."
+            detail = f"Chegirma faollashtirildi! Keyingi obuna to'lovida {promo.discount_percent}% chegirma qo'llanadi."
         else:
-            # Bepul kunlar (masalan 30 = 1 oy tekin)
+            # Bepul kunlar (masalan 30 = 1 oy tekin, 7 kun, va h.k.)
             sub.extend(days=promo.free_days)
             granted_days = promo.free_days
-            detail = f"Tabriklaymiz! Obunangizga {promo.free_days} kun qo'shildi."
+            is_activated = True
+            detail = f"Tabriklaymiz! Promo-kod orqali {promo.free_days} kunlik obuna avtomatik faollashtirildi!"
+            Transaction.objects.create(
+                user=request.user,
+                subscription=sub,
+                amount_usd=0,
+                amount_uzs=0,
+                status=TransactionStatus.SUCCESS,
+                description=f"Promo-kod ({promo.code}): {promo.free_days} kun bepul obuna",
+            )
 
         redemption = PromoRedemption.objects.create(
             user=request.user, promo=promo, status="applied",
@@ -255,6 +302,7 @@ class RedeemPromoView(APIView):
 
         return Response({
             "detail": detail,
+            "activated": is_activated,
             "redemption": PromoRedemptionSerializer(redemption).data,
             "subscription": SubscriptionSerializer(sub).data,
         })

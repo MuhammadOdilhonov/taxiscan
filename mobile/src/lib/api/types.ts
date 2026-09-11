@@ -153,6 +153,7 @@ export interface Subscription {
   auto_renew: boolean;
   monthly_price_usd: number;
   monthly_price_uzs: number;
+  discount_percent?: number;
   last_charge_at: string | null;
   next_charge_at: string | null;
 }
@@ -161,6 +162,8 @@ export interface PaymeCheckout {
   order_id: number;
   amount_uzs: number;
   checkout_url: string;
+  paid?: boolean;
+  detail?: string;
 }
 
 export interface Card {

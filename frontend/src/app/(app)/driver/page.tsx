@@ -8,7 +8,7 @@ import { PriceDetailModal } from "@/components/PriceDetailModal";
 import { Map, type MarkerPoint, type RegionZone } from "@/components/map/Map";
 import { Spinner } from "@/components/ui/Spinner";
 import { ServiceLogo } from "@/components/ui/ServiceLogo";
-import { Radar, RefreshCcw, TrendingUp, MapPin, Crown, Layers, Banknote, Users, Activity, Maximize2, X, Lock } from "lucide-react";
+import { Radar, RefreshCcw, TrendingUp, MapPin, Crown, Layers, Banknote, Users, Activity, Maximize2, X, Lock, Timer } from "lucide-react";
 import { formatUzs, formatNum } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { TierPicker } from "@/components/TierPicker";
@@ -52,6 +52,9 @@ export default function DriverHome() {
   const [tier, setTier] = useState<Tier>("econom");
   const [detailRow, setDetailRow] = useState<PriceRow | null>(null);
   const [mapFullscreen, setMapFullscreen] = useState(false);
+
+  // 15 soniyalik avtomatik yangilanish taymeri
+  const [secondsLeft, setSecondsLeft] = useState(15);
 
   useEffect(() => {
     apiGet<{ results: Region[] }>("/taxi/regions/").then((r) => setRegions(r.results || []));
@@ -109,9 +112,26 @@ export default function DriverHome() {
   };
 
   const refresh = () => {
+    setSecondsLeft(15);
     if (selectedRegion) loadFromPoint(selectedRegion.center_lat, selectedRegion.center_lng);
     else if (myLocation) loadFromPoint(myLocation.lat, myLocation.lng);
   };
+
+  // Har 1 soniyada orqaga hisoblash va har 15 soniyada yangilanish
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (selectedRegion) loadFromPoint(selectedRegion.center_lat, selectedRegion.center_lng);
+          else if (myLocation) loadFromPoint(myLocation.lat, myLocation.lng);
+          return 15;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [selectedRegion, myLocation]);
 
   // Tarifga qarab filter
   const tierRows = useMemo(
@@ -196,9 +216,23 @@ export default function DriverHome() {
               Real tuman chegaralari — bossangiz o'sha joydagi narxlar ko'rinadi
             </p>
           </div>
-          <button onClick={refresh} className="btn-outline text-xs" disabled={loading}>
-            <RefreshCcw size={12} /> Yangilash
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={refresh}
+              title="Har 15 soniyada avtomatik yangilanadi. Darhol yangilash uchun bosing"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-800 dark:text-brand border border-brand/30 text-xs font-bold transition cursor-pointer"
+            >
+              {loading ? (
+                <Spinner size={12} />
+              ) : (
+                <Timer size={13} className="text-brand-700 dark:text-brand" />
+              )}
+              <span className="tabular-nums">{secondsLeft}s</span>
+            </button>
+            <button onClick={refresh} className="btn-outline text-xs" disabled={loading}>
+              <RefreshCcw size={12} /> Yangilash
+            </button>
+          </div>
         </div>
 
         <div className="relative">

@@ -8,6 +8,7 @@ import { ServiceLogo } from "./ui/ServiceLogo";
 import { Badge } from "./ui/Badge";
 import { EmptyState } from "./ui/EmptyState";
 import type { PriceRow } from "@/lib/api/types";
+import { useI18n } from "@/i18n";
 
 const TIER_LABELS: Record<string, string> = {
   econom: "Start",
@@ -37,6 +38,7 @@ export function PriceList({
   sortMode?: "cheap-first" | "expensive-first";
 }) {
   const { colors } = useTheme();
+  const { t } = useI18n();
   const [openId, setOpenId] = useState<number | null>(null);
 
   const sorted = useMemo(() => {
@@ -89,7 +91,7 @@ export function PriceList({
                   ) : null}
                   {r.is_cheapest ? (
                     <Badge
-                      label="Eng arzon"
+                      label={t("passenger.cheapest")}
                       bg={colors.brand}
                       color="#0F1216"
                       icon={<Ionicons name="sparkles" size={9} color="#0F1216" />}
@@ -100,7 +102,7 @@ export function PriceList({
                   ) : null}
                 </View>
                 <Text style={[styles.meta, { color: colors.inkMuted }]}>
-                  {formatNum(r.distance_km, 1)} km · {formatNum(r.duration_min, 0)} daq
+                  {formatNum(r.distance_km, 1)} km · {formatNum(r.duration_min, 0)} {t("passenger.minUnit")}
                   {r.diff_from_cheapest && r.diff_from_cheapest > 0
                     ? `  +${formatUzs(r.diff_from_cheapest)}`
                     : ""}
@@ -123,7 +125,7 @@ export function PriceList({
                       hitSlop={8}
                       style={styles.actionBtn}
                     >
-                      <Text style={[styles.actionTxt, { color: colors.inkMuted }]}>Hisob</Text>
+                      <Text style={[styles.actionTxt, { color: colors.inkMuted }]}>{t("passenger.breakdown")}</Text>
                       <Ionicons
                         name={isOpen ? "chevron-up" : "chevron-down"}
                         size={12}
@@ -136,7 +138,7 @@ export function PriceList({
                     hitSlop={8}
                     style={styles.actionBtn}
                   >
-                    <Text style={[styles.actionTxt, { color: colors.brandDark }]}>Ochish</Text>
+                    <Text style={[styles.actionTxt, { color: colors.brandDark }]}>{t("passenger.openApp")}</Text>
                     <Ionicons name="open-outline" size={11} color={colors.brandDark} />
                   </Pressable>
                 </View>
@@ -145,14 +147,14 @@ export function PriceList({
 
             {isOpen && r.breakdown ? (
               <View style={[styles.breakdown, { backgroundColor: colors.cardAlt, borderTopColor: colors.line }]}>
-                <BreakRow label="Bazaviy" value={r.breakdown.base} colors={colors} />
+                <BreakRow label={t("passenger.breakdownBase")} value={r.breakdown.base} colors={colors} />
                 <BreakRow
-                  label={`${formatNum(r.distance_km, 1)} km masofa`}
+                  label={t("passenger.breakdownDistance", { km: formatNum(r.distance_km, 1) })}
                   value={r.breakdown.distance_part}
                   colors={colors}
                 />
                 <BreakRow
-                  label={`${formatNum(r.duration_min, 0)} daq vaqt`}
+                  label={t("passenger.breakdownTime", { min: formatNum(r.duration_min, 0) })}
                   value={r.breakdown.time_part}
                   colors={colors}
                 />
@@ -165,7 +167,7 @@ export function PriceList({
                   />
                 ) : null}
                 <View style={[styles.totalRow, { borderTopColor: colors.line }]}>
-                  <Text style={[styles.totalLabel, { color: colors.ink }]}>Jami</Text>
+                  <Text style={[styles.totalLabel, { color: colors.ink }]}>{t("passenger.total")}</Text>
                   <Text style={[styles.totalLabel, { color: colors.ink }]}>
                     {formatUzs(r.price_uzs)}
                   </Text>

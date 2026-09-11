@@ -4,17 +4,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme, radius } from "@/theme";
 import { formatUzs } from "@/lib/format";
 import type { Tier, PriceRow } from "@/lib/api/types";
+import { useI18n } from "@/i18n";
 
 const TIERS: {
   code: Tier;
-  label: string;
+  labelKey: string;
   icon: keyof typeof Ionicons.glyphMap;
-  desc: string;
+  descKey: string;
 }[] = [
-  { code: "econom", label: "Start", icon: "car-outline", desc: "Eng arzon" },
-  { code: "comfort", label: "Comfort", icon: "car-sport-outline", desc: "Qulayroq" },
-  { code: "comfort_plus", label: "Comfort+", icon: "ribbon-outline", desc: "Yangi mashina" },
-  { code: "business", label: "Business", icon: "briefcase-outline", desc: "Premium" },
+  { code: "econom", labelKey: "passenger.tierStart", icon: "car-outline", descKey: "passenger.tierEconomDesc" },
+  { code: "comfort", labelKey: "passenger.tierComfort", icon: "car-sport-outline", descKey: "passenger.tierComfortDesc" },
+  { code: "comfort_plus", labelKey: "passenger.tierComfortPlus", icon: "ribbon-outline", descKey: "passenger.tierComfortPlusDesc" },
+  { code: "business", labelKey: "passenger.tierBusiness", icon: "briefcase-outline", descKey: "passenger.tierBusinessDesc" },
 ];
 
 export function TierPicker({
@@ -27,29 +28,30 @@ export function TierPicker({
   onSelect: (t: Tier) => void;
 }) {
   const { colors } = useTheme();
+  const { t } = useI18n();
 
   const minByTier = useMemo(() => {
     const acc: Record<string, number | null> = {};
-    for (const t of TIERS) {
+    for (const item of TIERS) {
       if (!rows || rows.length === 0) {
-        acc[t.code] = null;
+        acc[item.code] = null;
         continue;
       }
-      const xs = rows.filter((r) => r.service.tier === t.code).map((r) => r.price_uzs);
-      acc[t.code] = xs.length ? Math.min(...xs) : null;
+      const xs = rows.filter((r) => r.service.tier === item.code).map((r) => r.price_uzs);
+      acc[item.code] = xs.length ? Math.min(...xs) : null;
     }
     return acc;
   }, [rows]);
 
   return (
     <View style={styles.grid}>
-      {TIERS.map((t) => {
-        const isSel = selected === t.code;
-        const min = minByTier[t.code];
+      {TIERS.map((item) => {
+        const isSel = selected === item.code;
+        const min = minByTier[item.code];
         return (
           <Pressable
-            key={t.code}
-            onPress={() => onSelect(t.code)}
+            key={item.code}
+            onPress={() => onSelect(item.code)}
             style={[
               styles.cell,
               {
@@ -66,13 +68,13 @@ export function TierPicker({
                 ]}
               >
                 <Ionicons
-                  name={t.icon}
+                  name={item.icon}
                   size={15}
                   color={isSel ? colors.brand : colors.inkMuted}
                 />
               </View>
               <Text style={[styles.label, { color: isSel ? "#0F1216" : colors.ink }]}>
-                {t.label}
+                {t(item.labelKey)}
               </Text>
             </View>
             <Text
@@ -81,17 +83,17 @@ export function TierPicker({
                 { color: isSel ? "rgba(15,18,22,0.6)" : colors.inkMuted },
               ]}
             >
-              {t.desc.toUpperCase()}
+              {t(item.descKey).toUpperCase()}
             </Text>
             <Text style={[styles.price, { color: isSel ? "#0F1216" : colors.ink }]}>
               {min != null ? (
                 <>
-                  <Text style={styles.dan}>dan </Text>
+                  <Text style={styles.dan}>{t("passenger.fromPrice")}</Text>
                   {formatUzs(min)}
                 </>
               ) : (
                 <Text style={{ color: isSel ? "rgba(15,18,22,0.6)" : colors.inkMuted, fontSize: 12 }}>
-                  manzil kerak
+                  {t("passenger.needAddress")}
                 </Text>
               )}
             </Text>

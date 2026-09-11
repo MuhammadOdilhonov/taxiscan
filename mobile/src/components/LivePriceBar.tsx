@@ -6,12 +6,14 @@ import { apiGet } from "@/lib/api/client";
 import { formatUzs } from "@/lib/format";
 import { ServiceLogo } from "./ui/ServiceLogo";
 import type { LiveResponse } from "@/lib/api/types";
+import { useI18n } from "@/i18n";
 
 const REFRESH_SEC = 30;
 
 /** Real-time narxlar paneli — har 30 soniyada yangilanadi */
 export function LivePriceBar({ tier }: { tier?: string }) {
   const { colors } = useTheme();
+  const { t } = useI18n();
   const [data, setData] = useState<LiveResponse | null>(null);
   const [secsLeft, setSecsLeft] = useState(REFRESH_SEC);
   const blink = useRef(new Animated.Value(1)).current;
@@ -54,7 +56,7 @@ export function LivePriceBar({ tier }: { tier?: string }) {
         <View style={styles.headerLeft}>
           <Animated.View style={[styles.dot, { opacity: blink }]} />
           <Ionicons name="radio-outline" size={14} color={colors.ink} />
-          <Text style={[styles.title, { color: colors.ink }]}>Real-time narxlar</Text>
+          <Text style={[styles.title, { color: colors.ink }]}>{t("passenger.realtimePrices")}</Text>
         </View>
         <Text style={[styles.secs, { color: colors.inkMuted }]}>{secsLeft}s</Text>
       </View>
@@ -92,7 +94,7 @@ export function LivePriceBar({ tier }: { tier?: string }) {
       </View>
 
       <Text style={[styles.note, { color: colors.inkMuted }]}>
-        ⓘ 5 km masofa uchun taxminiy. Har minutda surge asosida o'zgaradi.
+        {t("passenger.realtimeNote")}
       </Text>
     </View>
   );

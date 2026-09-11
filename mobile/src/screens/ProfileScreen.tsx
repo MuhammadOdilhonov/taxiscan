@@ -1,7 +1,14 @@
 import React, { useState } from "react";
 import {
-  View, Text, StyleSheet, Pressable, Alert, Image,
-  Modal, TextInput, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Alert,
+  Image,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -13,7 +20,8 @@ import { Header } from "@/components/ui/Header";
 import { Badge } from "@/components/ui/Badge";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/store/auth";
-import { apiPost, apiPatch, apiUpload } from "@/lib/api/client";
+import { useI18n } from "@/i18n";
+import { apiPatch, apiPost, apiUpload } from "@/lib/api/client";
 import { useIsPremium } from "@/lib/subscription";
 import { PaywallSheet } from "@/components/PaywallSheet";
 
@@ -24,6 +32,8 @@ export function ProfileScreen() {
   const logout = useAuth((s) => s.logout);
   const loadMe = useAuth((s) => s.loadMe);
   const isPremium = useIsPremium();
+  const { t, lang, setLang, languages } = useI18n();
+
   const [pwOpen, setPwOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [paywall, setPaywall] = useState(false);
@@ -31,34 +41,42 @@ export function ProfileScreen() {
   const fullName =
     user?.full_name ||
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
-    "Foydalanuvchi";
+    t("profile.rolePassenger");
 
   const roleLabel =
-    user?.role === "driver" ? "Haydovchi" : user?.role === "admin" ? "Admin" : "Yo'lovchi";
+    user?.role === "driver"
+      ? t("profile.roleDriver")
+      : user?.role === "admin"
+      ? t("profile.roleAdmin")
+      : t("profile.rolePassenger");
 
   const doLogout = () => {
-    Alert.alert("Chiqish", "Hisobdan chiqmoqchimisiz?", [
-      { text: "Yo'q", style: "cancel" },
-      {
-        text: "Chiqish",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-          router.replace("/(auth)/login");
+    Alert.alert(
+      t("profile.logoutConfirmTitle"),
+      t("profile.logoutConfirmMsg"),
+      [
+        { text: t("common.no"), style: "cancel" },
+        {
+          text: t("profile.logout"),
+          style: "destructive",
+          onPress: async () => {
+            await logout();
+            router.replace("/(auth)/login");
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const themeOptions: { key: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { key: "light", label: "Yorug'", icon: "sunny-outline" },
-    { key: "dark", label: "Qorong'i", icon: "moon-outline" },
-    { key: "auto", label: "Avto", icon: "phone-portrait-outline" },
+    { key: "light", label: t("profile.themeLight"), icon: "sunny-outline" },
+    { key: "dark", label: t("profile.themeDark"), icon: "moon-outline" },
+    { key: "auto", label: t("profile.themeAuto"), icon: "phone-portrait-outline" },
   ];
 
   return (
     <Screen>
-      <Header title="Profil" onBack={() => router.back()} />
+      <Header title={t("profile.title")} onBack={() => router.back()} />
 
       <Card padded style={{ alignItems: "center", paddingVertical: 24 }}>
         {user?.avatar_url ? (
@@ -81,7 +99,9 @@ export function ProfileScreen() {
           style={[styles.editBtn, { borderColor: colors.line }]}
         >
           <Ionicons name="create-outline" size={15} color={colors.ink} />
-          <Text style={{ color: colors.ink, fontSize: 13, fontWeight: "700" }}>Profilni tahrirlash</Text>
+          <Text style={{ color: colors.ink, fontSize: 13, fontWeight: "700" }}>
+            {t("profile.editProfile")}
+          </Text>
         </Pressable>
       </Card>
 
@@ -90,26 +110,80 @@ export function ProfileScreen() {
           <View style={styles.subHead}>
             <View style={styles.rowCenter}>
               <Ionicons name="diamond-outline" size={18} color={colors.brandDark} />
-              <Text style={[styles.blockTitle, { color: colors.ink }]}>Obuna</Text>
+              <Text style={[styles.blockTitle, { color: colors.ink }]}>{t("billing.title")}</Text>
             </View>
             <Badge
-              label={user.subscription.is_active ? "Faol" : "Faol emas"}
+              label={user.subscription.is_active ? t("billing.active") : t("billing.inactive")}
               bg={user.subscription.is_active ? colors.greenBg : colors.redBg}
               color={user.subscription.is_active ? colors.green : colors.red}
             />
           </View>
           <Text style={{ color: colors.inkMuted, fontSize: 13, marginTop: 8 }}>
-            {user.subscription.days_left} kun qoldi
+            {t("billing.daysLeft", { days: user.subscription.days_left })}
           </Text>
         </Card>
       ) : null}
 
+      {/* TILLAR / YAZYK / LANGUAGE */}
       <Card padded>
-        <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>Ko'rinish</Text>
+        <View style={styles.subHead}>
+          <View style={styles.rowCenter}>
+            <Ionicons name="globe-outline" size={18} color={colors.brandDark} />
+            <Text style={[styles.blockTitle, { color: colors.ink }]}>
+              {t("profile.language")}
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.themeRow, { marginTop: 12 }]}>
+          {languages.map((item) => {
+            const sel = lang === item.code;
+            return (
+              <Pressable
+                key={item.code}
+                onPress={() => setLang(item.code)}
+                style={[
+                  styles.themeBtn,
+                  {
+                    backgroundColor: sel ? colors.brand : colors.cardAlt,
+                    borderColor: sel ? colors.ink : "transparent",
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 22 }}>{item.flag}</Text>
+                <Text
+                  style={{
+                    color: sel ? "#0F1216" : colors.ink,
+                    fontWeight: "900",
+                    fontSize: 13,
+                    marginTop: 4,
+                  }}
+                >
+                  {item.short}
+                </Text>
+                <Text
+                  style={{
+                    color: sel ? "#0F1216" : colors.inkMuted,
+                    fontWeight: "600",
+                    fontSize: 11,
+                    marginTop: 1,
+                  }}
+                >
+                  {item.nativeLabel}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Card>
+
+      {/* KO'RINISH (THEME) */}
+      <Card padded>
+        <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>
+          {t("profile.theme")}
+        </Text>
         <View style={styles.themeRow}>
           {themeOptions.map((o) => {
             const sel = mode === o.key;
-            // Bepul foydalanuvchi faqat "Yorug'" (light) rejimni tanlay oladi
             const locked = !isPremium && o.key !== "light";
             return (
               <Pressable
@@ -129,7 +203,14 @@ export function ProfileScreen() {
                   size={18}
                   color={sel ? "#0F1216" : colors.inkMuted}
                 />
-                <Text style={{ color: sel ? "#0F1216" : colors.ink, fontWeight: "800", fontSize: 13, marginTop: 4 }}>
+                <Text
+                  style={{
+                    color: sel ? "#0F1216" : colors.ink,
+                    fontWeight: "800",
+                    fontSize: 13,
+                    marginTop: 4,
+                  }}
+                >
                   {o.label}
                 </Text>
               </Pressable>
@@ -138,45 +219,56 @@ export function ProfileScreen() {
         </View>
         {!isPremium ? (
           <Text style={{ color: colors.inkMuted, fontSize: 11, marginTop: 10 }}>
-            Tungi rejim faqat obuna bilan ishlaydi.
+            {t("profile.themeLockedNotice")}
           </Text>
         ) : null}
       </Card>
 
+      {/* MA'LUMOTLARIM */}
       <Card padded>
-        <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>Ma'lumotlarim</Text>
-        <Row icon="call-outline" label="Telefon" value={user?.phone || "—"} colors={colors} />
-        <Row icon="business-outline" label="Shahar" value={user?.city || "Toshkent"} colors={colors} />
+        <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>
+          {t("profile.myInfo")}
+        </Text>
+        <Row icon="call-outline" label={t("profile.phone")} value={user?.phone || "—"} colors={colors} />
+        <Row icon="business-outline" label={t("profile.city")} value={user?.city || "Toshkent"} colors={colors} />
         {user?.age ? (
-          <Row icon="person-outline" label="Yosh" value={`${user.age}`} colors={colors} />
+          <Row icon="person-outline" label={t("profile.age")} value={`${user.age}`} colors={colors} />
         ) : null}
-        <Row icon="shield-checkmark-outline" label="Rol" value={roleLabel} colors={colors} last />
+        <Row icon="shield-checkmark-outline" label={t("profile.role")} value={roleLabel} colors={colors} last />
       </Card>
 
+      {/* SOZLAMALAR */}
       <Card padded>
-        <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 4 }]}>Sozlamalar</Text>
+        <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 4 }]}>
+          {t("profile.settings")}
+        </Text>
         <ActionRow
           icon="lock-closed-outline"
-          label="Parolni o'zgartirish"
+          label={t("profile.changePassword")}
           colors={colors}
           onPress={() => setPwOpen(true)}
         />
         <ActionRow
           icon="information-circle-outline"
-          label="Versiya 1.0.0"
+          label={t("nav.version")}
           colors={colors}
           last
           chevron={false}
         />
       </Card>
 
-      <Pressable onPress={doLogout} style={[styles.logout, { backgroundColor: colors.redBg, borderColor: colors.red }]}>
+      <Pressable
+        onPress={doLogout}
+        style={[styles.logout, { backgroundColor: colors.redBg, borderColor: colors.red }]}
+      >
         <Ionicons name="log-out-outline" size={18} color={colors.red} />
-        <Text style={{ color: colors.red, fontWeight: "800", fontSize: 15 }}>Hisobdan chiqish</Text>
+        <Text style={{ color: colors.red, fontWeight: "800", fontSize: 15 }}>
+          {t("profile.logout")}
+        </Text>
       </Pressable>
 
       <Text style={{ color: colors.inkMuted, fontSize: 11, textAlign: "center", marginTop: 4 }}>
-        TaxiScan · Toshkent taksilarini taqqoslash
+        TaxiScan · {t("nav.appSub")}
       </Text>
 
       <EditProfileModal
@@ -190,8 +282,8 @@ export function ProfileScreen() {
       <PaywallSheet
         visible={paywall}
         onClose={() => setPaywall(false)}
-        title="Tungi rejim — obuna bilan"
-        message="Qorong'i (tungi) rejim va boshqa imkoniyatlar obuna orqali ochiladi."
+        title={t("paywall.title")}
+        message={t("paywall.message")}
       />
     </Screen>
   );
@@ -211,6 +303,7 @@ function EditProfileModal({
   onSaved: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useI18n();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [city, setCity] = useState("");
@@ -232,7 +325,7 @@ function EditProfileModal({
     setError(null);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setError("Galereyaga ruxsat berilmadi");
+      setError(t("profile.galleryNoPerm"));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -248,11 +341,13 @@ function EditProfileModal({
 
   const submit = async () => {
     setError(null);
-    if (!firstName.trim()) { setError("Ismni kiriting"); return; }
+    if (!firstName.trim()) {
+      setError(t("auth.nameRequired"));
+      return;
+    }
     setBusy(true);
     try {
       if (avatarUri) {
-        // Rasm tanlangan — multipart bilan yuboramiz
         const form = new FormData();
         form.append("first_name", firstName.trim());
         form.append("last_name", lastName.trim());
@@ -274,10 +369,10 @@ function EditProfileModal({
       }
       onSaved();
       onClose();
-      Alert.alert("Tayyor", "Profil yangilandi");
+      Alert.alert(t("common.ready"), t("profile.savedSuccess"));
     } catch (err: any) {
       const d = err?.data;
-      setError(d?.detail || d?.first_name?.[0] || d?.avatar?.[0] || "Saqlab bo'lmadi");
+      setError(d?.detail || d?.first_name?.[0] || d?.avatar?.[0] || t("profile.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -291,7 +386,9 @@ function EditProfileModal({
       <View style={styles.pwOverlay}>
         <View style={[styles.pwSheet, { backgroundColor: colors.bg, paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.pwHead}>
-            <Text style={{ color: colors.ink, fontSize: 18, fontWeight: "900" }}>Profilni tahrirlash</Text>
+            <Text style={{ color: colors.ink, fontSize: 18, fontWeight: "900" }}>
+              {t("profile.editProfile")}
+            </Text>
             <Pressable onPress={onClose} hitSlop={10}>
               <Ionicons name="close" size={26} color={colors.ink} />
             </Pressable>
@@ -308,7 +405,12 @@ function EditProfileModal({
               {previewUri ? (
                 <Image source={{ uri: previewUri }} style={styles.avatarPickImg} />
               ) : (
-                <View style={[styles.avatarPickImg, { backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }]}>
+                <View
+                  style={[
+                    styles.avatarPickImg,
+                    { backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+                  ]}
+                >
                   <Text style={{ fontSize: 30, fontWeight: "900", color: "#0F1216" }}>
                     {(firstName.charAt(0) || "U").toUpperCase()}
                   </Text>
@@ -318,32 +420,40 @@ function EditProfileModal({
                 <Ionicons name="camera" size={15} color={colors.bg} />
               </View>
             </Pressable>
-            <Text style={{ color: colors.inkMuted, fontSize: 12, marginTop: 8 }}>Rasmni o'zgartirish</Text>
+            <Text style={{ color: colors.inkMuted, fontSize: 12, marginTop: 8 }}>
+              {t("profile.changePhoto")}
+            </Text>
           </View>
 
           <View style={{ gap: 12 }}>
             <View>
-              <Text style={[styles.editLabel, { color: colors.inkMuted }]}>Ism</Text>
+              <Text style={[styles.editLabel, { color: colors.inkMuted }]}>
+                {t("profile.editName")}
+              </Text>
               <TextInput
                 value={firstName}
                 onChangeText={setFirstName}
-                placeholder="Ism"
+                placeholder={t("profile.editName")}
                 placeholderTextColor={colors.inkMuted}
                 style={[styles.pwInput, inputStyle]}
               />
             </View>
             <View>
-              <Text style={[styles.editLabel, { color: colors.inkMuted }]}>Familiya</Text>
+              <Text style={[styles.editLabel, { color: colors.inkMuted }]}>
+                {t("profile.editLastName")}
+              </Text>
               <TextInput
                 value={lastName}
                 onChangeText={setLastName}
-                placeholder="Familiya"
+                placeholder={t("profile.editLastName")}
                 placeholderTextColor={colors.inkMuted}
                 style={[styles.pwInput, inputStyle]}
               />
             </View>
             <View>
-              <Text style={[styles.editLabel, { color: colors.inkMuted }]}>Shahar</Text>
+              <Text style={[styles.editLabel, { color: colors.inkMuted }]}>
+                {t("profile.editCity")}
+              </Text>
               <TextInput
                 value={city}
                 onChangeText={setCity}
@@ -353,11 +463,17 @@ function EditProfileModal({
               />
             </View>
 
-            <Pressable onPress={submit} disabled={busy} style={[styles.pwBtn, { backgroundColor: colors.brand }]}>
+            <Pressable
+              onPress={submit}
+              disabled={busy}
+              style={[styles.pwBtn, { backgroundColor: colors.brand }]}
+            >
               {busy ? (
                 <ActivityIndicator size="small" color="#0F1216" />
               ) : (
-                <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 15 }}>Saqlash</Text>
+                <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 15 }}>
+                  {t("common.save")}
+                </Text>
               )}
             </Pressable>
           </View>
@@ -377,6 +493,7 @@ function ChangePasswordModal({
   colors: any;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useI18n();
   const [step, setStep] = useState<1 | 2>(1);
   const [sentTo, setSentTo] = useState("");
   const [code, setCode] = useState("");
@@ -388,26 +505,32 @@ function ChangePasswordModal({
   const [info, setInfo] = useState<string | null>(null);
 
   const reset = () => {
-    setStep(1); setSentTo(""); setCode(""); setNewP(""); setNewP2("");
-    setError(null); setInfo(null); setShow(false);
+    setStep(1);
+    setSentTo("");
+    setCode("");
+    setNewP("");
+    setNewP2("");
+    setError(null);
+    setInfo(null);
+    setShow(false);
   };
 
   const sendCode = async () => {
-    setError(null); setInfo(null);
+    setError(null);
+    setInfo(null);
     setBusy(true);
     try {
       const r = await apiPost<any>("/auth/password-reset/request/", {});
       setSentTo(r?.sent_to || "");
       setStep(2);
-      // DEBUG rejimida kod qaytsa — avtomatik kiritamiz (sinov uchun)
       if (r?.debug_code) {
         setCode(String(r.debug_code));
-        setInfo(`Kod ${r.channel === "email" ? "emailga" : "telefonga"} yuborildi (${r.sent_to}). Sinov kodi: ${r.debug_code}`);
+        setInfo(`Kod yuborildi: ${r.sent_to}. Sinov kodi: ${r.debug_code}`);
       } else {
-        setInfo(`Tasdiqlash kodi yuborildi: ${r?.sent_to || ""}`);
+        setInfo(`Kod yuborildi: ${r?.sent_to || ""}`);
       }
     } catch (err: any) {
-      setError(err?.data?.detail || "Kod yuborib bo'lmadi");
+      setError(err?.data?.detail || t("profile.pwError"));
     } finally {
       setBusy(false);
     }
@@ -415,9 +538,18 @@ function ChangePasswordModal({
 
   const confirm = async () => {
     setError(null);
-    if (!code.trim()) { setError("Kodni kiriting"); return; }
-    if (newP !== newP2) { setError("Yangi parollar mos kelmaydi"); return; }
-    if (newP.length < 6) { setError("Yangi parol kamida 6 ta belgidan iborat bo'lsin"); return; }
+    if (!code.trim()) {
+      setError(t("profile.enterCode"));
+      return;
+    }
+    if (newP !== newP2) {
+      setError(t("auth.passwordsDoNotMatch"));
+      return;
+    }
+    if (newP.length < 6) {
+      setError(t("auth.passwordMinLength"));
+      return;
+    }
     setBusy(true);
     try {
       await apiPost("/auth/password-reset/confirm/", {
@@ -427,10 +559,16 @@ function ChangePasswordModal({
       });
       reset();
       onClose();
-      Alert.alert("Tayyor", "Parol muvaffaqiyatli o'zgartirildi");
+      Alert.alert(t("common.ready"), t("profile.pwSuccess"));
     } catch (err: any) {
       const d = err?.data;
-      setError(d?.code || d?.new_password || d?.new_password2 || d?.detail || "Parolni o'zgartirib bo'lmadi");
+      setError(
+        d?.code ||
+          d?.new_password ||
+          d?.new_password2 ||
+          d?.detail ||
+          t("profile.pwError")
+      );
     } finally {
       setBusy(false);
     }
@@ -443,8 +581,16 @@ function ChangePasswordModal({
       <View style={styles.pwOverlay}>
         <View style={[styles.pwSheet, { backgroundColor: colors.bg, paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.pwHead}>
-            <Text style={{ color: colors.ink, fontSize: 18, fontWeight: "900" }}>Parolni o'zgartirish</Text>
-            <Pressable onPress={() => { reset(); onClose(); }} hitSlop={10}>
+            <Text style={{ color: colors.ink, fontSize: 18, fontWeight: "900" }}>
+              {t("profile.changePassword")}
+            </Text>
+            <Pressable
+              onPress={() => {
+                reset();
+                onClose();
+              }}
+              hitSlop={10}
+            >
               <Ionicons name="close" size={26} color={colors.ink} />
             </Pressable>
           </View>
@@ -463,14 +609,19 @@ function ChangePasswordModal({
           {step === 1 ? (
             <View style={{ gap: 14 }}>
               <Text style={{ color: colors.inkMuted, fontSize: 13, lineHeight: 19 }}>
-                Xavfsizlik uchun emailingiz yoki telefon raqamingizga tasdiqlash kodi yuboriladi.
-                Kodni kiritgandan so'ng yangi parol o'rnatasiz.
+                {t("profile.pwResetNotice")}
               </Text>
-              <Pressable onPress={sendCode} disabled={busy} style={[styles.pwBtn, { backgroundColor: colors.brand }]}>
+              <Pressable
+                onPress={sendCode}
+                disabled={busy}
+                style={[styles.pwBtn, { backgroundColor: colors.brand }]}
+              >
                 {busy ? (
                   <ActivityIndicator size="small" color="#0F1216" />
                 ) : (
-                  <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 15 }}>Tasdiqlash kodini yuborish</Text>
+                  <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 15 }}>
+                    {t("profile.sendCodeBtn")}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -479,7 +630,7 @@ function ChangePasswordModal({
               <TextInput
                 value={code}
                 onChangeText={setCode}
-                placeholder="Tasdiqlash kodi"
+                placeholder={t("profile.enterCode")}
                 placeholderTextColor={colors.inkMuted}
                 keyboardType="number-pad"
                 maxLength={6}
@@ -488,7 +639,7 @@ function ChangePasswordModal({
               <TextInput
                 value={newP}
                 onChangeText={setNewP}
-                placeholder="Yangi parol"
+                placeholder={t("profile.newPw")}
                 placeholderTextColor={colors.inkMuted}
                 secureTextEntry={!show}
                 style={[styles.pwInput, inputStyle]}
@@ -496,7 +647,7 @@ function ChangePasswordModal({
               <TextInput
                 value={newP2}
                 onChangeText={setNewP2}
-                placeholder="Yangi parolni takrorlang"
+                placeholder={t("profile.repeatNewPw")}
                 placeholderTextColor={colors.inkMuted}
                 secureTextEntry={!show}
                 style={[styles.pwInput, inputStyle]}
@@ -505,19 +656,27 @@ function ChangePasswordModal({
                 <Pressable onPress={() => setShow((s) => !s)} style={styles.pwShow} hitSlop={8}>
                   <Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={16} color={colors.inkMuted} />
                   <Text style={{ color: colors.inkMuted, fontSize: 13 }}>
-                    {show ? "Yashirish" : "Ko'rsatish"}
+                    {show ? t("profile.hide") : t("profile.show")}
                   </Text>
                 </Pressable>
                 <Pressable onPress={sendCode} disabled={busy} hitSlop={8}>
-                  <Text style={{ color: colors.brandDark, fontSize: 13, fontWeight: "800" }}>Qayta yuborish</Text>
+                  <Text style={{ color: colors.brandDark, fontSize: 13, fontWeight: "800" }}>
+                    {t("profile.resend")}
+                  </Text>
                 </Pressable>
               </View>
 
-              <Pressable onPress={confirm} disabled={busy} style={[styles.pwBtn, { backgroundColor: colors.brand }]}>
+              <Pressable
+                onPress={confirm}
+                disabled={busy}
+                style={[styles.pwBtn, { backgroundColor: colors.brand }]}
+              >
                 {busy ? (
                   <ActivityIndicator size="small" color="#0F1216" />
                 ) : (
-                  <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 15 }}>Parolni o'zgartirish</Text>
+                  <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 15 }}>
+                    {t("profile.changePassword")}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -584,7 +743,9 @@ function ActionRow({
     >
       <View style={styles.rowCenter}>
         <Ionicons name={icon} size={18} color={colors.inkMuted} />
-        <Text style={{ color: colors.ink, fontSize: 14, marginLeft: 8, fontWeight: "600" }}>{label}</Text>
+        <Text style={{ color: colors.ink, fontSize: 14, marginLeft: 8, fontWeight: "600" }}>
+          {label}
+        </Text>
       </View>
       {chevron ? <Ionicons name="chevron-forward" size={16} color={colors.inkMuted} /> : null}
     </Pressable>
@@ -612,7 +773,7 @@ const styles = StyleSheet.create({
   themeBtn: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: radius.md,
     borderWidth: 2,
   },

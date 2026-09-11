@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -12,10 +12,12 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme, radius } from "@/theme";
+import { useTheme } from "@/theme";
 import { useAuth } from "@/store/auth";
+import { useI18n } from "@/i18n";
 import { Logo } from "@/components/ui/Header";
 import { Button } from "@/components/ui/Button";
+import { LanguageSwitchPill } from "@/components/LanguageSelectModal";
 
 interface Slide {
   icon: keyof typeof Ionicons.glyphMap;
@@ -23,47 +25,44 @@ interface Slide {
   text: string;
 }
 
-const SLIDES: Slide[] = [
-  {
-    icon: "car-sport",
-    title: "TaxiNarx'ga xush kelibsiz",
-    text:
-      "Toshkentdagi barcha taksi xizmatlari narxini bitta joyda taqqoslang. " +
-      "Yandex, My Taxi va boshqalarni alohida ochib o'tirmang — hammasi shu yerda.",
-  },
-  {
-    icon: "map",
-    title: "Manzilni oson tanlang",
-    text:
-      "Qayerdan va qayerga borishni yozib qidiring yoki xaritadan surib tanlang. " +
-      "Nuqta markazda turadi — xaritani harakatlantirib aniq joyni belgilaysiz.",
-  },
-  {
-    icon: "pricetags",
-    title: "Narxlarni solishtiring",
-    text:
-      "Bir necha yo'l variantini, masofa va vaqtni ko'rasiz. " +
-      "Eng arzon taksi avtomatik belgilanadi — ortiqcha to'lamaysiz.",
-  },
-  {
-    icon: "rocket",
-    title: "Tayyormisiz?",
-    text:
-      "Ro'yxatdan o'ting yoki hisobingizga kiring va bir soniyada eng arzon " +
-      "taksi variantini toping. Keling, boshlaymiz!",
-  },
-];
-
 export default function Onboarding() {
   const router = useRouter();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const completeOnboarding = useAuth((s) => s.completeOnboarding);
+  const { t } = useI18n();
   const { width } = useWindowDimensions();
 
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
-  const isLast = index === SLIDES.length - 1;
+
+  const slides: Slide[] = useMemo(
+    () => [
+      {
+        icon: "car-sport",
+        title: t("onboarding.slide1Title"),
+        text: t("onboarding.slide1Text"),
+      },
+      {
+        icon: "map",
+        title: t("onboarding.slide2Title"),
+        text: t("onboarding.slide2Text"),
+      },
+      {
+        icon: "pricetags",
+        title: t("onboarding.slide3Title"),
+        text: t("onboarding.slide3Text"),
+      },
+      {
+        icon: "rocket",
+        title: t("onboarding.slide4Title"),
+        text: t("onboarding.slide4Text"),
+      },
+    ],
+    [t]
+  );
+
+  const isLast = index === slides.length - 1;
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / width);
@@ -85,15 +84,16 @@ export default function Onboarding() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.bg }]}>
-      {/* Top bar: logo + skip */}
+      {/* Top bar: logo + language switcher + skip */}
       <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <Logo size={26} />
+        <LanguageSwitchPill />
         {!isLast ? (
           <Pressable onPress={finish} hitSlop={10}>
-            <Text style={[styles.skip, { color: colors.inkMuted }]}>O'tkazib yuborish</Text>
+            <Text style={[styles.skip, { color: colors.inkMuted }]}>{t("onboarding.skip")}</Text>
           </Pressable>
         ) : (
-          <View style={{ width: 1 }} />
+          <View style={{ width: 40 }} />
         )}
       </View>
 
@@ -106,7 +106,7 @@ export default function Onboarding() {
         onMomentumScrollEnd={onScroll}
         scrollEventThrottle={16}
       >
-        {SLIDES.map((s, i) => (
+        {slides.map((s, i) => (
           <View key={i} style={[styles.slide, { width }]}>
             <View style={[styles.iconCircle, { backgroundColor: colors.brand + "26", borderColor: colors.brand }]}>
               <Ionicons name={s.icon} size={64} color={colors.brandDark} />
@@ -119,7 +119,7 @@ export default function Onboarding() {
 
       {/* Dots */}
       <View style={styles.dots}>
-        {SLIDES.map((_, i) => (
+        {slides.map((_, i) => (
           <View
             key={i}
             style={[
@@ -136,7 +136,7 @@ export default function Onboarding() {
       {/* Bottom action */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 16 }]}>
         <Button
-          title={isLast ? "Boshlash" : "Keyingisi"}
+          title={isLast ? t("onboarding.start") : t("onboarding.next")}
           onPress={next}
           icon={
             <Ionicons
@@ -176,8 +176,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     marginBottom: 40,
   },
-  title: { fontSize: 26, fontWeight: "900", textAlign: "center", marginBottom: 16 },
-  text: { fontSize: 16, lineHeight: 24, textAlign: "center" },
+  title: { fontSize: 24, fontWeight: "900", textAlign: "center", marginBottom: 16 },
+  text: { fontSize: 15, lineHeight: 22, textAlign: "center" },
   dots: {
     flexDirection: "row",
     justifyContent: "center",

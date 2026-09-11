@@ -1,5 +1,8 @@
 """Taxi narxlari aggregatorining yuqori sathli servisi."""
+import time
 import uuid
+from datetime import timedelta
+from django.utils import timezone
 from concurrent.futures import ThreadPoolExecutor
 from .models import TaxiService, PriceEstimate, Region
 from .providers import get_provider
@@ -9,6 +12,27 @@ from .providers.formula import (
 )
 from .routing import get_route, get_routes
 from .weather import weather_surge
+
+_last_cleanup_timestamp = 0.0
+
+
+def cleanup_old_estimates(retention_days: int = 1) -> int:
+    """1 kundan (24 soat) eski barcha taxi zaproslarini bazadan tozalash."""
+    cutoff = timezone.now() - timedelta(days=retention_days)
+    deleted_count, _ = PriceEstimate.objects.filter(created_at__lt=cutoff).delete()
+    return deleted_count
+
+
+def maybe_cleanup_old_estimates(interval_seconds: int = 1800, retention_days: int = 1):
+    """Har 30 daqiqada bir marta avtomatik ravishda 1 kundan eski zaproslarni tozalaydi."""
+    global _last_cleanup_timestamp
+    now_ts = time.time()
+    if now_ts - _last_cleanup_timestamp > interval_seconds:
+        _last_cleanup_timestamp = now_ts
+        try:
+            cleanup_old_estimates(retention_days=retention_days)
+        except Exception:
+            pass
 
 
 def _surge_reason(hour: int, weekday: int, weather_reason: str | None) -> str:
@@ -155,8 +179,25 @@ def aggregate_estimates(
             return price
         return max(minimum_fare, round(price * rlvl / 100) * 100)
 
-    # Ob-havo keshini bir marta isitamiz — parallel narx so'rovlari kesh'dan oladi
-    wx_boost, wx_reason, wx_info = weather_surge()
+    # 1 kundan eski barcha zaproslarni avtomatik tozalab turish (bazani to'lib ketishdan saqlash)
+    maybe_cleanup_old_estimates()
+
+    # 15 soniyalik qayta-qayta so'rovlarda bir xil marshrut uchun har 15 soniyada
+    # bazaga qayta-qayta 20 tadan yozuv yozilib ketmasligi uchun:
+    # Agar ayni shu qidiruvchi ayni shu yo'nalishni so'nggi 60 soniya ichida
+    # qidirgan bo'lsa, qayta saqlash shart emas (narx jonli hisoblab qaytariladi).
+    if save and searcher_key:
+        recent_threshold = timezone.now() - timedelta(seconds=60)
+        already_saved_recently = PriceEstimate.objects.filter(
+            searcher_key=searcher_key,
+            start_lat=start_lat,
+            start_lng=start_lng,
+            end_lat=end_lat,
+            end_lng=end_lng,
+            created_at__gte=recent_threshold,
+        ).exists()
+        if already_saved_recently:
+            save = False
 
     # Bitta qidiruv = bitta ID: barcha brend yozuvlari shu ID bilan bog'lanadi,
     # demand statistikasi esa yozuvlarni emas, unikal qidiruvlarni sanaydi

@@ -16,8 +16,8 @@ from .providers.formula import current_surge
 
 User = get_user_model()
 
-WINDOW_DAYS = 7
-WINDOW_LABEL = "so'nggi 7 kun"
+WINDOW_DAYS = 1
+WINDOW_LABEL = "so'nggi 24 soat"
 
 
 def _region_stats(since):

@@ -9,7 +9,7 @@ import { TierPicker } from "@/components/TierPicker";
 import type { Tier } from "@/lib/api/types";
 import { Map, type MarkerPoint, type RoutePath } from "@/components/map/Map";
 import { Spinner } from "@/components/ui/Spinner";
-import { ArrowDownUp, MapPin, Navigation, Search, Info, Crosshair, Plus, Trash2, Lock } from "lucide-react";
+import { ArrowDownUp, MapPin, Navigation, Search, Info, Crosshair, Plus, Trash2, Lock, Timer } from "lucide-react";
 import { formatNum, formatUzs } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { useIsPremium, canSearchToday, markSearchUsed, FREE_VISIBLE_SERVICES } from "@/lib/subscription";
@@ -75,31 +75,61 @@ export default function PassengerHome() {
   const [selectedRouteId, setSelectedRouteId] = useState<number>(0);
   const [autoLocating, setAutoLocating] = useState(false);
 
-  // Sahifaga kirishi bilan foydalanuvchining joriy joyini "A — Qayerdan" ga avtomatik
-  // qo'yamiz. start hali bo'sh bo'lsa har kirishda urinadi (ruxsat berilgan bo'lsa
-  // brauzer qayta so'ramaydi). Bir martalik StrictMode dublini ref bilan to'xtatamiz.
+  // 15 soniyalik avtomatik yangilanish taymeri va boshlang'ich narxlar
+  const [secondsLeft, setSecondsLeft] = useState(15);
+  const [refreshing, setRefreshing] = useState(false);
+  const [initialRates, setInitialRates] = useState<any | null>(null);
+  const [initialLoading, setInitialLoading] = useState(false);
+
+  const loadInitialRates = async (lat = 41.311, lng = 69.279) => {
+    setInitialLoading(true);
+    try {
+      const r = await apiPost<any>("/taxi/quick-local/", {
+        lat,
+        lng,
+        sample_distance_km: 5,
+      });
+      setInitialRates(r);
+    } catch {
+      // ignore
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  // Sahifaga kirishi bilan foydalanuvchining joriy joyini va boshlang'ich tariflarni avtomatik olamiz
   const autoLocTried = useRef(false);
   useEffect(() => {
-    if (typeof window === "undefined" || !navigator.geolocation) return;
-    if (autoLocTried.current || start) return;
+    if (typeof window === "undefined") return;
+    if (autoLocTried.current) return;
     autoLocTried.current = true;
     setAutoLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        try {
-          const geo = await reverseGeocode(lat, lng);
-          setStart((prev) => prev ?? { label: geo.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng });
-        } catch {
-          setStart((prev) => prev ?? { label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng });
-        } finally {
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          loadInitialRates(lat, lng);
+          try {
+            const geo = await reverseGeocode(lat, lng);
+            setStart((prev) => prev ?? { label: geo.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng });
+          } catch {
+            setStart((prev) => prev ?? { label: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng });
+          } finally {
+            setAutoLocating(false);
+          }
+        },
+        () => {
           setAutoLocating(false);
-        }
-      },
-      () => setAutoLocating(false),
-      { timeout: 8000, enableHighAccuracy: true }
-    );
+          loadInitialRates(41.311, 69.279);
+        },
+        { timeout: 8000, enableHighAccuracy: true }
+      );
+    } else {
+      setAutoLocating(false);
+      loadInitialRates(41.311, 69.279);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -132,6 +162,7 @@ export default function PassengerHome() {
       });
       setData(r);
       setSelectedRouteId(0);
+      setSecondsLeft(15);
       markSearchUsed();
     } catch (err: any) {
       setError(err?.data?.detail || "Narxni hisoblab bo'lmadi");
@@ -139,6 +170,64 @@ export default function PassengerHome() {
       setLoading(false);
     }
   };
+
+  const stateRef = useRef({ data, start, end, stops, tier });
+  useEffect(() => {
+    stateRef.current = { data, start, end, stops, tier };
+  }, [data, start, end, stops, tier]);
+
+  // Har 15 soniyada serverdan real narxlarni yangilash (soxta/random narxlarsiz)
+  const refreshLivePrices = async () => {
+    const { data: curData, start: curStart, end: curEnd, stops: curStops } = stateRef.current;
+    setRefreshing(true);
+    try {
+      // 1. Agar marshrut hisoblangan bo'lsa (A -> B): serverdan eng so'nggi real narxlar
+      if (curData && curStart && curEnd) {
+        const validStops = curStops.filter((s): s is AddressValue => !!s);
+        const r = await apiPost<EstimateResp>("/taxi/estimate/", {
+          start_lat: curStart.lat,
+          start_lng: curStart.lng,
+          end_lat: curEnd.lat,
+          end_lng: curEnd.lng,
+          start_address: curStart.label,
+          end_address: curEnd.label,
+          stops: validStops.map((s) => ({ lat: s.lat, lng: s.lng, address: s.label })),
+        });
+        setData(r);
+        return;
+      }
+
+      // 2. Agar marshrut hisoblanmagan bo'lsa ("Boshlang'ich tariflar")
+      const lat = curStart?.lat || 41.311;
+      const lng = curStart?.lng || 69.279;
+      const r = await apiPost<any>("/taxi/quick-local/", { lat, lng, sample_distance_km: 5 });
+      setInitialRates(r);
+    } catch {
+      // server xatosi bo'lsa mavjud real narxlar o'zgarmasdan saqlanadi
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const triggerRefresh = () => {
+    setSecondsLeft(15);
+    refreshLivePrices();
+  };
+
+  // Har 1 soniyada orqaga hisoblash va har 15 soniyada yangilanish
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          refreshLivePrices();
+          return 15;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // "Hozirgi joyimdan chaqirsam qancha bo'ladi" - manzilsiz, taxminiy 5km
   const quickPickupQuote = async () => {
@@ -441,9 +530,12 @@ export default function PassengerHome() {
             Tarifni tanlang
           </h3>
           <TierPicker
-            rows={data?.results}
+            rows={data?.results || initialRates?.results}
             selected={tier}
-            onSelect={setTier}
+            onSelect={(t) => {
+              setTier(t);
+              setSecondsLeft(15);
+            }}
             isPremium={isPremium}
             onLocked={() =>
               openPaywall(
@@ -494,9 +586,28 @@ export default function PassengerHome() {
         )}
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-extrabold text-ink">Natijalar</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-extrabold text-ink">
+              {data ? `Natijalar · ${TIER_LABEL[tier]}` : "Boshlang'ich tariflar"}
+            </h2>
+            <button
+              onClick={triggerRefresh}
+              title="Har 15 soniyada avtomatik yangilanadi. Darhol yangilash uchun bosing"
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand/15 hover:bg-brand/25 text-brand-800 dark:text-brand border border-brand/30 transition text-xs font-bold cursor-pointer"
+            >
+              {refreshing ? (
+                <Spinner size={11} />
+              ) : (
+                <Timer size={12} className="text-brand-700 dark:text-brand" />
+              )}
+              <span className="tabular-nums">{secondsLeft}s</span>
+            </button>
+          </div>
           {data && data.results.length > 0 && (
             <span className="text-xs text-ink-muted">{data.results.length} ta tarif</span>
+          )}
+          {!data && initialRates && initialRates.results?.length > 0 && (
+            <span className="text-xs text-ink-muted">Joyda (~5 km)</span>
           )}
         </div>
 
@@ -519,6 +630,7 @@ export default function PassengerHome() {
           </div>
         )}
 
+        {/* 1. Marshrut hisoblangan bo'lsa natijalar */}
         {!loading && data && displayedRows.length > 0 && (
           <PriceList
             rows={displayedRows.filter((r: any) => r.service.tier === tier)}
@@ -532,7 +644,30 @@ export default function PassengerHome() {
           />
         )}
 
-        {!loading && (data?.results?.length ?? 0) > 0 && (
+        {/* 2. Marshrut hisoblanmagan bo'lsa ("Boshlang'ich tariflar") */}
+        {!loading && !data && (
+          initialLoading && !initialRates ? (
+            <div className="card p-6 text-center text-ink-muted flex flex-col items-center gap-2">
+              <Spinner size={20} />
+              <p className="text-xs">Boshlang'ich tariflar yuklanmoqda...</p>
+            </div>
+          ) : (
+            initialRates && initialRates.results?.length > 0 ? (
+              <PriceList
+                rows={initialRates.results.filter((r: any) => r.service.tier === tier)}
+                start={start ? { lat: start.lat, lng: start.lng } : { lat: 41.311, lng: 69.279 }}
+                end={null}
+                sortMode="cheap-first"
+                freeLimit={isPremium ? undefined : FREE_VISIBLE_SERVICES}
+                onUpgrade={() =>
+                  openPaywall("Taksilar qulflangan", "Barcha taksilar narxini ko'rish uchun obuna bo'ling.")
+                }
+              />
+            ) : null
+          )
+        )}
+
+        {!loading && ((data?.results?.length || 0) > 0 || (initialRates?.results?.length || 0) > 0) && (
           <div className="text-[10px] text-ink-muted text-center mt-2 leading-relaxed">
             ⓘ Narxlar e'lon qilingan tariflar va real yo'l masofasi asosida <b>taxminiy</b> hisoblanadi.
             Aniq summa tanlangan ilovada ko'rsatiladi.

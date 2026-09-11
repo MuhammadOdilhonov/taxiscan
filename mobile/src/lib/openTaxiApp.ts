@@ -24,71 +24,87 @@ const BRANDS: Record<string, BrandConfig> = {
     name: "Yandex Go",
     deeplinks: (s, e, tier) => {
       const lvl = tier ? YANDEX_LEVEL[tier] : undefined;
-      const q = `start-lat=${s.lat}&start-lon=${s.lng}` +
+      const q =
+        `start-lat=${s.lat}&start-lon=${s.lng}` +
         (e ? `&end-lat=${e.lat}&end-lon=${e.lng}` : "") +
         (lvl ? `&level=${lvl}` : "");
       return [
         `yandextaxi://route?${q}`,
-        `intent://route?${q}#Intent;scheme=yandextaxi;package=ru.yandex.taxi;end`,
-        `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=ru.yandex.taxi;end`,
+        `yandexgo://route?${q}`,
+        `yandextaxi://`,
+        `yandexgo://`,
       ];
     },
-    androidPackages: ["ru.yandex.taxi"],
+    androidPackages: ["ru.yandex.taxi", "com.yandex.taxi", "ru.yandex.go"],
     iosAppId: "472650686",
     website: "https://taxi.yandex.uz",
   },
   fasten: {
     name: "Fasten",
     deeplinks: (s, e) => {
-      const q = `start-lat=${s.lat}&start-lon=${s.lng}` + (e ? `&end-lat=${e.lat}&end-lon=${e.lng}` : "");
+      const q =
+        `start-lat=${s.lat}&start-lon=${s.lng}` +
+        (e ? `&end-lat=${e.lat}&end-lon=${e.lng}` : "");
       return [
         `fasten://route?${q}`,
-        `intent://route?${q}#Intent;scheme=fasten;package=com.fasten.rider;end`,
-        `yandextaxi://route?${q}`,
-        `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.fasten.rider;end`,
+        `fastentashkent://route?${q}`,
+        `fasten://`,
+        `fastentashkent://`,
+        `fasten-rider://`,
       ];
     },
-    androidPackages: ["com.fasten.rider", "ru.yandex.fasten"],
+    androidPackages: ["com.fasten.tashkent", "com.fasten.rider", "ru.yandex.fasten"],
+    iosAppId: "1558231268",
     website: "https://fasten.com/uz_uz",
   },
   uklon: {
     name: "Uklon",
     deeplinks: (s, e) => {
-      const q = `start_lat=${s.lat}&start_lng=${s.lng}` + (e ? `&end_lat=${e.lat}&end_lng=${e.lng}` : "");
+      const q =
+        `start_lat=${s.lat}&start_lng=${s.lng}` +
+        (e ? `&end_lat=${e.lat}&end_lng=${e.lng}` : "");
       return [
         `uklon://route?${q}`,
-        `intent://route?${q}#Intent;scheme=uklon;package=ua.com.uklontaxi;end`,
         `uklonpassenger://route?${q}`,
-        `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=ua.com.uklontaxi;end`,
+        `uklon://`,
+        `uklonpassenger://`,
       ];
     },
     androidPackages: ["ua.com.uklontaxi", "ua.com.uklon"],
+    iosAppId: "509015707",
     website: "https://uklon.uz",
   },
   mytaxi: {
     name: "MyTaxi",
     deeplinks: (s, e) => {
-      const q = `start_lat=${s.lat}&start_lng=${s.lng}` + (e ? `&end_lat=${e.lat}&end_lng=${e.lng}` : "");
+      const q =
+        `start_lat=${s.lat}&start_lng=${s.lng}` +
+        (e ? `&end_lat=${e.lat}&end_lng=${e.lng}` : "");
+      const q2 =
+        `start-lat=${s.lat}&start-lon=${s.lng}` +
+        (e ? `&end-lat=${e.lat}&end-lon=${e.lng}` : "");
       return [
         `mytaxi://route?${q}`,
-        `intent://route?${q}#Intent;scheme=mytaxi;package=com.uznewmax.mytaxi;end`,
+        `mytaxi://order?${q}`,
+        `mytaxi://route?${q2}`,
         `mytaxi://`,
-        `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.uznewmax.mytaxi;end`,
       ];
     },
-    androidPackages: ["com.uznewmax.mytaxi", "net.mytaxi.passenger", "uz.mytaxi.client"],
+    androidPackages: ["com.uznewmax.mytaxi", "uz.mytaxi.client", "net.mytaxi.passenger"],
     iosAppId: "865012817",
     website: "https://mytaxi.uz",
   },
   wb_taxi: {
     name: "WB Taxi",
     deeplinks: (s, e) => {
-      const q = `start_lat=${s.lat}&start_lng=${s.lng}` + (e ? `&end_lat=${e.lat}&end_lng=${e.lng}` : "");
+      const q =
+        `start_lat=${s.lat}&start_lng=${s.lng}` +
+        (e ? `&end_lat=${e.lat}&end_lng=${e.lng}` : "");
       return [
         `wbtaxi://route?${q}`,
-        `intent://route?${q}#Intent;scheme=wbtaxi;package=uz.wildberries.taxi.client;end`,
         `wbtaxi://`,
-        `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=uz.wildberries.taxi.client;end`,
+        `wb-taxi://`,
+        `wildberries-taxi://`,
       ];
     },
     androidPackages: ["uz.wildberries.taxi.client", "ru.wildberries.client"],
@@ -107,6 +123,7 @@ const ALIASES: Record<string, string> = {
   wbtaxi: "wb_taxi",
   wb_taxi: "wb_taxi",
   mytaxi: "mytaxi",
+  my_taxi: "mytaxi",
 };
 
 function brandKey(code: string): string {
@@ -114,6 +131,11 @@ function brandKey(code: string): string {
   return ALIASES[clean] || clean;
 }
 
+/**
+ * Havolani to'g'ridan-to'g'ri ochish.
+ * Android 11+ da canOpenURL tekshirmasdan to'g'ridan-to'g'ri openURL chaqiriladi.
+ * Chunki canOpenURL <queries> yo'qligi sababli o'rnatilgan ilovalarga ham false qaytaradi.
+ */
 async function tryDirectOpen(url: string): Promise<boolean> {
   if (!url) return false;
   try {
@@ -141,17 +163,13 @@ export async function openTaxiAppByCode(
   tier?: string
 ): Promise<void> {
   const key = brandKey(code);
-  const meta = BRANDS[key] || BRANDS.yandex_go;
+  const meta = BRANDS[key];
+  if (!meta) return;
   const brandName = meta.name || code;
 
   const candidateUrls: string[] = [];
 
-  // Prioritize native app schemes first
-  if (meta.deeplinks) {
-    candidateUrls.push(...meta.deeplinks(start, end, tier));
-  }
-
-  // Only use custom template if it's a native scheme (not broken http/https redirects)
+  // 1) Agar backend custom shablon bergan bo'lsa va u faqat shu brendga tegishli bo'lsa
   if (customTemplate && !customTemplate.startsWith("http")) {
     let filled = customTemplate
       .replace("{start_lat}", String(start.lat))
@@ -162,11 +180,16 @@ export async function openTaxiAppByCode(
         .replace("{end_lng}", String(end.lng));
     }
     if (!filled.includes("{end_")) {
-      candidateUrls.unshift(filled);
+      candidateUrls.push(filled);
     }
   }
 
-  // Try each candidate URL until one successfully launches the app
+  // 2) Faqat va faqat shu brendga tegishli deeplinklar
+  if (meta.deeplinks) {
+    candidateUrls.push(...meta.deeplinks(start, end, tier));
+  }
+
+  // 3) Har bir deeplinkni to'g'ridan-to'g'ri ochishga harakat qilamiz
   for (const url of candidateUrls) {
     const success = await tryDirectOpen(url);
     if (success) {
@@ -174,7 +197,8 @@ export async function openTaxiAppByCode(
     }
   }
 
-  // If no native app opened, show installer prompt
+  // 4) Agar ilova o'rnatilmagan bo'lsa (barcha deeplinklar xato bergan bo'lsa) — Play Market / App Store taklifi
+  const pkg = meta.androidPackages[0];
   Alert.alert(
     `${brandName} ilovasi`,
     `Telefoningizda ${brandName} ilovasi topilmadi. Play Marketdan yuklab olasizmi?`,
@@ -183,11 +207,15 @@ export async function openTaxiAppByCode(
       {
         text: "Yuklab olish",
         onPress: () => {
-          const pkg = meta.androidPackages[0];
-          const storeUrl = Platform.OS === "android"
-            ? `https://play.google.com/store/apps/details?id=${pkg}`
-            : `https://apps.apple.com/app/id${meta.iosAppId || ""}`;
-          Linking.openURL(storeUrl).catch(() => {});
+          if (Platform.OS === "android") {
+            // Oldin market:// ilova do'konini ochadi, bo'lmasa veb-havola
+            Linking.openURL(`market://details?id=${pkg}`).catch(() => {
+              Linking.openURL(`https://play.google.com/store/apps/details?id=${pkg}`).catch(() => {});
+            });
+          } else {
+            const storeUrl = `https://apps.apple.com/app/id${meta.iosAppId || ""}`;
+            Linking.openURL(storeUrl).catch(() => {});
+          }
         },
       },
     ]

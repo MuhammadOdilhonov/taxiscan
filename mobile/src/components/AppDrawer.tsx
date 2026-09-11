@@ -23,6 +23,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
  * Eng tepada TaxiScan logotipi va nomi turadi. Ichida qidiruv YO'Q —
  * faqat foydalanuvchi ma'lumotlari va bo'limlarga o'tish.
  */
+import { useI18n } from "@/i18n";
+
 export function AppDrawer({
   visible,
   onClose,
@@ -35,10 +37,15 @@ export function AppDrawer({
   const router = useRouter();
   const user = useAuth((s) => s.user);
   const isPremium = useIsPremium();
+  const { t } = useI18n();
 
   const isDriver = user?.role === "driver";
-  const roleLabel = isDriver ? "Haydovchi" : user?.role === "admin" ? "Admin" : "Yo'lovchi";
-  const fullName = user?.full_name || "Foydalanuvchi";
+  const roleLabel = isDriver
+    ? t("profile.roleDriver")
+    : user?.role === "admin"
+    ? t("profile.roleAdmin")
+    : t("profile.rolePassenger");
+  const fullName = user?.full_name || t("profile.rolePassenger");
 
   const textPrimary = colors.ink;
   const textMuted = colors.inkMuted;
@@ -53,7 +60,6 @@ export function AppDrawer({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        {/* Sheet ichiga bosilganda yopilmasligi uchun bosishni to'xtatamiz */}
         <Pressable
           style={[styles.sheet, { backgroundColor: drawerBg, paddingTop: insets.top + 4 }]}
           onPress={() => {}}
@@ -106,9 +112,9 @@ export function AppDrawer({
                 <Ionicons name="person-outline" size={22} color="#0F1216" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.menuTitle, { color: textPrimary }]}>Profil</Text>
+                <Text style={[styles.menuTitle, { color: textPrimary }]}>{t("nav.profile")}</Text>
                 <Text style={[styles.menuSub, { color: textMuted }]}>
-                  Shaxsiy ma'lumotlar va sozlamalar
+                  {t("nav.drawerProfileSub")}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={textMuted} />
@@ -124,9 +130,9 @@ export function AppDrawer({
                   <Ionicons name="stats-chart-outline" size={22} color="#0F1216" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuTitle, { color: textPrimary }]}>Statistika</Text>
+                  <Text style={[styles.menuTitle, { color: textPrimary }]}>{t("nav.stats")}</Text>
                   <Text style={[styles.menuSub, { color: textMuted }]}>
-                    Narx tendensiyalari va talab
+                    {t("nav.drawerStatsSub")}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={textMuted} />
@@ -147,16 +153,16 @@ export function AppDrawer({
                 <Ionicons name="diamond-outline" size={22} color="#FFCC00" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.menuTitle, { color: textPrimary }]}>Obuna</Text>
+                <Text style={[styles.menuTitle, { color: textPrimary }]}>{t("nav.billing")}</Text>
                 <Text style={[styles.menuSub, { color: textMuted }]}>
-                  Tariflar va to'lov turlari (Payme)
+                  {t("nav.drawerBillingSub")}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={textMuted} />
             </Pressable>
           </View>
 
-          <Text style={[styles.footer, { color: textMuted }]}>TaxiScan v1.0.0 · Toshkent</Text>
+          <Text style={[styles.footer, { color: textMuted }]}>TaxiScan {t("nav.version")} · Toshkent</Text>
         </Pressable>
       </Pressable>
     </Modal>

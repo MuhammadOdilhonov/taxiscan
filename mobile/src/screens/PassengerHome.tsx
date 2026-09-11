@@ -27,6 +27,8 @@ import { openTaxiApp } from "@/lib/openTaxiApp";
 import type { EstimateResponse, ServiceInfo, Tier } from "@/lib/api/types";
 import { useIsPremium, canSearchToday, markSearchUsed } from "@/lib/subscription";
 import { PaywallSheet } from "@/components/PaywallSheet";
+import { useI18n } from "@/i18n";
+import { useGeoIntentStore } from "@/lib/geoIntent";
 
 // Yo'lovchi kartasidagi qisqa kod -> backend brend kodi (deeplink to'g'ri ilovaga borsin)
 const BRAND_CODE: Record<string, string> = {
@@ -48,20 +50,24 @@ interface QuickRateItem {
   ionIcon?: keyof typeof Ionicons.glyphMap;
 }
 
-const TARIFS: { key: Tier; label: string }[] = [
-  { key: "econom", label: "Start" },
-  { key: "comfort", label: "Comfort" },
-  { key: "comfort_plus", label: "Comfort+" },
-  { key: "business", label: "Biznes" },
-];
-
 export function PassengerHome() {
   const { colors, isDark, setMode } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const user = useAuth((s) => s.user);
   const isPremium = useIsPremium();
+  const { t } = useI18n();
   const mapRef = useRef<MapWebViewHandle>(null);
+
+  const TARIFS_LIST = useMemo(
+    () => [
+      { key: "econom" as Tier, label: t("passenger.tierStart") },
+      { key: "comfort" as Tier, label: t("passenger.tierComfort") },
+      { key: "comfort_plus" as Tier, label: t("passenger.tierComfortPlus") },
+      { key: "business" as Tier, label: t("passenger.tierBusiness") },
+    ],
+    [t]
+  );
 
   // Paywall (obuna taklifi) holati
   const [paywall, setPaywall] = useState(false);
@@ -82,6 +88,10 @@ export function PassengerHome() {
     { label: "", lat: 0, lng: 0 },
   ]);
 
+  // Telegram yoki tashqi ilovalardan ulashilgan lokatsiya
+  const pendingDestination = useGeoIntentStore((s) => s.pendingDestination);
+  const clearPendingDestination = useGeoIntentStore((s) => s.clearPendingDestination);
+
   const [activePickerIndex, setActivePickerIndex] = useState<number | "start">(0);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -92,6 +102,10 @@ export function PassengerHome() {
   const [loading, setLoading] = useState(false);
   const [calculated, setCalculated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 15 soniyalik avtomatik narx yangilanishi va orqaga hisoblash taymeri
+  const [secondsLeft, setSecondsLeft] = useState(15);
+  const [refreshingRates, setRefreshingRates] = useState(false);
 
   // Boshlang'ich narxlar — DOIMO ARZONDAN QIMMATGA TARTIBLANGAN (ASCENDING)
   const [quickRates, setQuickRates] = useState<QuickRateItem[]>([
@@ -137,6 +151,15 @@ export function PassengerHome() {
 
           mapRef.current?.recenter(lat, lng, 16);
           await fetchQuickLocalRates(lat, lng);
+
+          // Agar B nuqta allaqachon mavjud bo'lsa (masalan Telegram orqali kelgan bo'lsa)
+          setDestinations((prev) => {
+            const hasValidB = prev.some((d) => d.lat !== 0 && d.lng !== 0);
+            if (hasValidB) {
+              calculateRoutePrices(tier, prev, currentPos);
+            }
+            return prev;
+          });
         }
       }
     } catch {
@@ -266,6 +289,7 @@ export function PassengerHome() {
       setData(res);
       setCalculated(true);
       setSelectedRouteIndex(0);
+      setSecondsLeft(15);
       updateCardRatesFromData(res, targetTier, 0);
       if (!calculated) markSearchUsed();
     } catch (err: any) {
@@ -394,6 +418,119 @@ export function PassengerHome() {
     setQuickRates(rawItems);
   };
 
+  // 15 soniyalik avtomatik yangilanish taymeri uchun eng so'nggi state qiymatlari
+  const stateRef = useRef({
+    calculated,
+    tier,
+    destinations,
+    start,
+    selectedRouteIndex,
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      calculated,
+      tier,
+      destinations,
+      start,
+      selectedRouteIndex,
+    };
+  }, [calculated, tier, destinations, start, selectedRouteIndex]);
+
+  // Har 15 soniyada faqat REAL server narxlarini yangilash (hech qanday soxta/random narx yo'q)
+  const refreshLivePrices = async () => {
+    const {
+      calculated: isCalc,
+      tier: curTier,
+      destinations: curDests,
+      start: curStart,
+      selectedRouteIndex: curRouteIdx,
+    } = stateRef.current;
+
+    setRefreshingRates(true);
+
+    try {
+      // 1. Agar marshrut hisoblangan bo'lsa (A -> B): serverdan yangi real hisob-kitobni olish
+      if (isCalc && curStart && curStart.lat !== 0) {
+        const validDest = curDests.filter((d) => d.lat !== 0 && d.lng !== 0);
+        if (validDest.length > 0) {
+          const finalEnd = validDest[validDest.length - 1];
+          const stops = validDest.slice(0, validDest.length - 1).map((d) => ({
+            lat: d.lat,
+            lng: d.lng,
+            address: d.label,
+          }));
+
+          const res = await apiPost<EstimateResponse>("/taxi/estimate/", {
+            start_lat: curStart.lat,
+            start_lng: curStart.lng,
+            end_lat: finalEnd.lat,
+            end_lng: finalEnd.lng,
+            start_address: curStart.label,
+            end_address: finalEnd.label,
+            stops: stops.length > 0 ? stops : undefined,
+          });
+          setData(res);
+          updateCardRatesFromData(res, curTier, curRouteIdx);
+          return;
+        }
+      }
+
+      // 2. Agar marshrut hisoblanmagan bo'lsa ("Boshlang'ich tariflar"): joylashuv bo'yicha real bazaviy narxlarni olish
+      if (curStart && curStart.lat !== 0 && curStart.lng !== 0) {
+        await fetchQuickLocalRates(curStart.lat, curStart.lng);
+      }
+    } catch {
+      // Server xatosi bo'lsa mavjud real narxlar o'zgarmasdan saqlanadi
+    } finally {
+      setRefreshingRates(false);
+    }
+  };
+
+  // Har 1 soniyada orqaga hisoblab borish va har 15 soniyada yangilanish
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          refreshLivePrices();
+          return 15;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Telegram yoki boshqa ilovalardan (geo: yoki link) ulashilgan lokatsiya kelganda B nuqta sifatida o'rnatish
+  useEffect(() => {
+    if (!pendingDestination) return;
+    const { lat, lng, label } = pendingDestination;
+    clearPendingDestination();
+
+    const fallbackLabel = label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const newDest: AddressValue = { label: fallbackLabel, lat, lng };
+    const nextDests = [newDest];
+    setDestinations(nextDests);
+
+    // Xaritani yangi B nuqtaga markazlashtiramiz
+    mapRef.current?.recenter(lat, lng, 15);
+
+    // Geocoding orqali haqiqiy ko'cha/bino nomini aniqlash
+    reverseGeocode(lat, lng)
+      .then((geo) => {
+        if (geo?.label) {
+          setDestinations([{ label: geo.label, lat, lng }]);
+        }
+      })
+      .catch(() => {});
+
+    // Agar A nuqta (start) mavjud bo'lsa, darhol barcha taksi narxlarini taqqoslaymiz!
+    if (start && start.lat !== 0 && start.lng !== 0) {
+      calculateRoutePrices(tier, nextDests, start);
+    }
+  }, [pendingDestination, start, tier]);
+
   // Tarif o'zgarganda narxlarni yangilash (bepul foydalanuvchi faqat "Start" ni ko'radi)
   const handleSelectTarif = (selectedTier: Tier) => {
     if (!isPremium && selectedTier !== "econom") {
@@ -404,6 +541,7 @@ export function PassengerHome() {
       return;
     }
     setTier(selectedTier);
+    setSecondsLeft(15);
     if (data) {
       updateCardRatesFromData(data, selectedTier, selectedRouteIndex);
     }
@@ -493,7 +631,7 @@ export function PassengerHome() {
 
   const totalInputRows = 1 + destinations.length;
   const isScrollable = totalInputRows > 3;
-  const activeTarifLabel = TARIFS.find((t) => t.key === tier)?.label || "Start";
+  const activeTarifLabel = TARIFS_LIST.find((t) => t.key === tier)?.label || t("passenger.tierStart");
 
   // Yo'llar ro'yxati (1-yo'l, 2-yo'l...) — bepul foydalanuvchi faqat 1 ta yo'lni ko'radi
   const availableRoutesList = isPremium ? data?.routes || [] : (data?.routes || []).slice(0, 1);
@@ -538,14 +676,29 @@ export function PassengerHome() {
 
         {/* O'ng burchakdagi Taksi Narxlari Kartasi */}
         <View style={styles.topRightCardWrap}>
-          {/* Card Tepasidagi Nishon */}
-          <View style={[styles.joydaBadgeHeader, { backgroundColor: isDark ? "#0A0D11" : "#FFFFFF" }]}>
+          {/* Card Tepasidagi Nishon (Boshlang'ich tariflar / Tanlangan tarif + 15s Taymer) */}
+          <Pressable
+            onPress={() => {
+              setSecondsLeft(15);
+              refreshLivePrices();
+            }}
+            style={[styles.joydaBadgeHeader, { backgroundColor: isDark ? "#0A0D11" : "#FFFFFF" }]}
+            hitSlop={8}
+          >
             <View style={styles.badgeLine} />
             <Text style={styles.joydaBadgeText}>
-              {calculated ? activeTarifLabel : "Joyda"}
+              {calculated ? activeTarifLabel : t("passenger.initialRates")}
             </Text>
+            <View style={styles.timerBadge}>
+              {refreshingRates ? (
+                <ActivityIndicator size={10} color="#FFCC00" />
+              ) : (
+                <Ionicons name="time-outline" size={11} color="#FFCC00" />
+              )}
+              <Text style={styles.timerBadgeText}>{secondsLeft}s</Text>
+            </View>
             <View style={styles.badgeLine} />
-          </View>
+          </Pressable>
 
           {/* 5 Ta Taksi Xizmati Narxi (KUN/TUN THEME NATIVE ADAPTIVE) */}
           <View style={[styles.topRightCardBody, { backgroundColor: cardBg }]}>
@@ -553,7 +706,6 @@ export function PassengerHome() {
               <ActivityIndicator color="#FFCC00" size="small" style={{ paddingVertical: 14 }} />
             ) : (
               quickRates.map((item, idx) => {
-                // Bepul foydalanuvchi faqat 2 ta arzon taksini ko'radi, qolgani qulflangan
                 const locked = !isPremium && idx >= 2;
                 return (
                   <Pressable
@@ -562,8 +714,8 @@ export function PassengerHome() {
                     onPress={() =>
                       locked
                         ? openPaywall(
-                            "Taksilar qulflangan",
-                            "Barcha taksilar narxini ko'rish uchun obuna bo'ling. Bepul rejimda 2 ta eng arzon taksi ko'rinadi."
+                            t("paywall.title"),
+                            t("paywall.message")
                           )
                         : openBrandApp(item)
                     }
@@ -586,7 +738,7 @@ export function PassengerHome() {
                         </Text>
                         <View style={styles.lockedOverlay}>
                           <Ionicons name="lock-closed" size={11} color="#FFCC00" />
-                          <Text style={styles.lockedTxt}>Obuna</Text>
+                          <Text style={styles.lockedTxt}>{t("nav.billing")}</Text>
                         </View>
                       </View>
                     ) : (
@@ -627,9 +779,9 @@ export function PassengerHome() {
             >
               <View style={styles.yellowDotCircle} />
               <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text style={[styles.routeLabel, { color: textMuted }]}>Qayerdan (A nuqta)</Text>
+                <Text style={[styles.routeLabel, { color: textMuted }]}>{t("passenger.from")} (A)</Text>
                 <Text style={[styles.routeValue, { color: textPrimary }]} numberOfLines={1}>
-                  {start?.label || "Turgan joyingiz"}
+                  {start?.label || t("passenger.yourLocation")}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={textMuted} />
@@ -655,10 +807,10 @@ export function PassengerHome() {
                       }}
                     >
                       <Text style={[styles.routeLabel, { color: textMuted }]}>
-                        Qayerga ({letter} nuqta)
+                        {t("passenger.to")} ({letter})
                       </Text>
                       <Text style={styles.routeValueHighlight} numberOfLines={1}>
-                        {dest.label || "Manzilni tanlang"}
+                        {dest.label || t("passenger.chooseDestination")}
                       </Text>
                     </Pressable>
 
@@ -717,7 +869,7 @@ export function PassengerHome() {
                         color={isSel ? "#0F1216" : "#FFCC00"}
                       />
                       <Text style={[styles.routeTabTxt, isSel && styles.routeTabTxtActive]}>
-                        {rItem.label || `${rIdx + 1}-yo'l`} ({rItem.distance_km} km)
+                        {rItem.label || t("passenger.routeOption", { n: rIdx + 1 })} ({rItem.distance_km} km)
                       </Text>
                     </Pressable>
                   );
@@ -727,25 +879,25 @@ export function PassengerHome() {
 
             {/* TARIFLARNI TANLASH QATORI (Start, Comfort, Comfort+, Biznes) */}
             <View style={styles.tarifRowContainer}>
-              {TARIFS.map((t) => {
-                const active = tier === t.key;
-                const locked = !isPremium && t.key !== "econom";
+              {TARIFS_LIST.map((tItem) => {
+                const active = tier === tItem.key;
+                const locked = !isPremium && tItem.key !== "econom";
                 return (
                   <Pressable
-                    key={t.key}
+                    key={tItem.key}
                     style={[
                       styles.tarifPillBtn,
                       { backgroundColor: cardBg },
                       active && styles.tarifPillBtnActive,
                       locked && { opacity: 0.7 },
                     ]}
-                    onPress={() => handleSelectTarif(t.key)}
+                    onPress={() => handleSelectTarif(tItem.key)}
                   >
                     {locked ? (
                       <Ionicons name="lock-closed" size={11} color="#FFCC00" style={{ marginBottom: 2 }} />
                     ) : null}
                     <Text style={[styles.tarifPillTxt, active && styles.tarifPillTxtActive]}>
-                      {t.label}
+                      {tItem.label}
                     </Text>
                   </Pressable>
                 );
@@ -762,7 +914,7 @@ export function PassengerHome() {
             {loading ? (
               <ActivityIndicator color="#0F1216" size="small" />
             ) : (
-              <Text style={styles.actionButtonText}>Narxni bilish</Text>
+              <Text style={styles.actionButtonText}>{t("passenger.compare")}</Text>
             )}
           </Pressable>
         )}
@@ -784,7 +936,7 @@ export function PassengerHome() {
           </Text>
           <ActivityIndicator color="#FFCC00" size="large" style={{ marginTop: 18 }} />
           <Text style={[styles.loadingSub, { color: colors.inkMuted }]}>
-            Turgan joyingiz aniqlanmoqda...
+            {t("common.loading")}
           </Text>
         </View>
       ) : null}
@@ -796,8 +948,8 @@ export function PassengerHome() {
         onOpenChange={(v) => setPickerModalOpen(v)}
         label={
           activePickerIndex === "start"
-            ? "Qayerdan (A nuqta)"
-            : `Qayerga (${String.fromCharCode(66 + Number(activePickerIndex))} nuqta)`
+            ? `${t("passenger.from")} (A)`
+            : `${t("passenger.to")} (${String.fromCharCode(66 + Number(activePickerIndex))})`
         }
         value={activePickerIndex === "start" ? start : destinations[Number(activePickerIndex)] || null}
         onChange={(val) => handleConfirmAddress(val)}
@@ -810,8 +962,8 @@ export function PassengerHome() {
       <PaywallSheet
         visible={paywall}
         onClose={() => setPaywall(false)}
-        title={paywallInfo.title}
-        message={paywallInfo.message}
+        title={paywallInfo.title || t("paywall.title")}
+        message={paywallInfo.message || t("paywall.message")}
       />
     </View>
   );
@@ -851,22 +1003,37 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: -10,
     zIndex: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: "#FFCC00",
   },
   badgeLine: {
-    width: 12,
+    width: 8,
     height: 1,
     backgroundColor: "#FFCC00",
   },
   joydaBadgeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
     color: "#FFCC00",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+  },
+  timerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(255, 204, 0, 0.16)",
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  timerBadgeText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#FFCC00",
+    fontVariant: ["tabular-nums"],
   },
   topRightCardBody: {
     borderRadius: 18,

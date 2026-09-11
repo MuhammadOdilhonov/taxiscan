@@ -13,16 +13,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/store/auth";
 import { useTheme, radius } from "@/theme";
+import { useI18n } from "@/i18n";
 import { Logo } from "@/components/ui/Header";
 import { Field } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { LanguageSwitchPill } from "@/components/LanguageSelectModal";
 
 export default function RegisterScreen() {
   const router = useRouter();
   const register = useAuth((s) => s.register);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useI18n();
 
   const [role, setRole] = useState<"passenger" | "driver">("passenger");
   const [phone, setPhone] = useState("+998");
@@ -33,11 +36,11 @@ export default function RegisterScreen() {
 
   const submit = async () => {
     if (password !== password2) {
-      setError("Parollar mos kelmaydi");
+      setError(t("auth.passwordsDoNotMatch"));
       return;
     }
     if (password.length < 6) {
-      setError("Parol kamida 6 ta belgidan iborat bo'lsin");
+      setError(t("auth.passwordMinLength"));
       return;
     }
     setLoading(true);
@@ -57,7 +60,7 @@ export default function RegisterScreen() {
       const data = err?.data;
       const first =
         (data && typeof data === "object" && Object.values(data)[0]) ||
-        "Ro'yhatdan o'tishda xatolik";
+        t("auth.registerError");
       setError(Array.isArray(first) ? first[0] : String(first));
     } finally {
       setLoading(false);
@@ -70,24 +73,28 @@ export default function RegisterScreen() {
       style={[styles.flex, { backgroundColor: colors.bg }]}
     >
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 30 }]}
+        contentContainerStyle={[
+          styles.container,
+          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 30 },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.logoWrap}>
-          <Logo size={38} />
+        <View style={styles.topBar}>
+          <Logo size={34} />
+          <LanguageSwitchPill />
         </View>
 
-        <Card padded>
-          <Text style={[styles.title, { color: colors.ink }]}>Ro'yhatdan o'tish</Text>
+        <Card padded style={{ marginTop: 12 }}>
+          <Text style={[styles.title, { color: colors.ink }]}>{t("auth.registerTitle")}</Text>
           <Text style={[styles.subtitle, { color: colors.inkMuted }]}>
-            Telefon va parolni kiriting. Qolgan ma'lumotlarni keyin to'ldirasiz.
+            {t("auth.registerSubtitle")}
           </Text>
 
           <View style={[styles.roleTabs, { backgroundColor: colors.cardAlt }]}>
             {([
-              { key: "passenger", label: "Yo'lovchi", icon: "person-outline" },
-              { key: "driver", label: "Haydovchi", icon: "car-outline" },
+              { key: "passenger", label: t("auth.rolePassenger"), icon: "person-outline" },
+              { key: "driver", label: t("auth.roleDriver"), icon: "car-outline" },
             ] as const).map((r) => {
               const sel = role === r.key;
               return (
@@ -107,23 +114,23 @@ export default function RegisterScreen() {
 
           <View style={{ gap: 14, marginTop: 16 }}>
             <Field
-              label="Telefon raqam"
+              label={t("auth.phone")}
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
-              placeholder="+998 90 123 45 67"
+              placeholder={t("auth.phonePlaceholder")}
               leftIcon={<Ionicons name="call-outline" size={18} color={colors.inkMuted} />}
             />
             <Field
-              label="Parol"
+              label={t("auth.password")}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              placeholder="kamida 6 ta belgi"
+              placeholder={t("auth.passwordMinLength")}
               leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.inkMuted} />}
             />
             <Field
-              label="Parolni tasdiqlang"
+              label={t("auth.confirmPassword")}
               value={password2}
               onChangeText={setPassword2}
               secureTextEntry
@@ -137,14 +144,16 @@ export default function RegisterScreen() {
               </View>
             ) : null}
 
-            <Button title="Davom etish" onPress={submit} loading={loading} />
+            <Button title={t("common.continue")} onPress={submit} loading={loading} />
           </View>
 
           <View style={styles.footer}>
-            <Text style={{ color: colors.inkMuted, fontSize: 14 }}>Hisobingiz bormi? </Text>
+            <Text style={{ color: colors.inkMuted, fontSize: 14 }}>{t("auth.haveAccount")} </Text>
             <Link href="/(auth)/login" asChild>
               <Pressable>
-                <Text style={{ color: colors.brandDark, fontWeight: "800", fontSize: 14 }}>Kirish</Text>
+                <Text style={{ color: colors.brandDark, fontWeight: "800", fontSize: 14 }}>
+                  {t("auth.loginBtn")}
+                </Text>
               </Pressable>
             </Link>
           </View>
@@ -157,7 +166,12 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { paddingHorizontal: 20 },
-  logoWrap: { alignItems: "center", marginBottom: 20 },
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   title: { fontSize: 22, fontWeight: "900" },
   subtitle: { fontSize: 13, marginTop: 4, lineHeight: 18 },
   roleTabs: {

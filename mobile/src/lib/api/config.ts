@@ -14,10 +14,10 @@ import Constants from "expo-constants";
  */
 
 const PROD_API_BASE = "https://backend.taxiscan.app";
-const USE_PROD = true; // Real production backend
+const USE_PROD = true; // Server bilan ishlash uchun faollashtirildi
 
-const LAN_IP = "192.168.100.101"; // zarur bo'lsa kompyuter IP sini yozing
-const USE_LAN = false; // avtomatik o'rniga qo'lda IP ishlatish uchun true qiling
+const LAN_IP = "192.168.100.28";
+const USE_LAN = false;
 
 const PORT = 8001;
 

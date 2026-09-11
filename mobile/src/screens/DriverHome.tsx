@@ -13,17 +13,9 @@ import { openTaxiApp } from "@/lib/openTaxiApp";
 import type { EstimateResponse, Region, Tier, DemandResponse, DemandRegion } from "@/lib/api/types";
 import { useIsPremium } from "@/lib/subscription";
 import { PaywallSheet } from "@/components/PaywallSheet";
+import { useI18n } from "@/i18n";
 
 const DEFAULT = { lat: 41.311, lng: 69.279 };
-
-const LEVEL_LABEL: Record<string, string> = { high: "Yuqori talab", medium: "O'rtacha", low: "Past talab" };
-
-const TARIFS: { key: Tier; label: string }[] = [
-  { key: "econom", label: "Start" },
-  { key: "comfort", label: "Comfort" },
-  { key: "comfort_plus", label: "Comfort+" },
-  { key: "business", label: "Biznes" },
-];
 
 /** GeoJSON geometry -> [lat,lng] ringlar (MapWebView zonasi uchun) */
 function geometryToRings(geom: Region["geometry"]): [number, number][][] {
@@ -38,6 +30,23 @@ export function DriverHome() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const isPremium = useIsPremium();
+  const { t } = useI18n();
+
+  const LEVEL_LABEL: Record<string, string> = {
+    high: t("driver.highDemand"),
+    medium: t("driver.mediumDemand"),
+    low: t("driver.lowDemand"),
+  };
+
+  const TARIFS_LIST: { key: Tier; label: string }[] = useMemo(
+    () => [
+      { key: "econom", label: t("passenger.tierStart") },
+      { key: "comfort", label: t("passenger.tierComfort") },
+      { key: "comfort_plus", label: t("passenger.tierComfortPlus") },
+      { key: "business", label: t("passenger.tierBusiness") },
+    ],
+    [t]
+  );
   const [paywall, setPaywall] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [regions, setRegions] = useState<Region[]>([]);
@@ -168,7 +177,7 @@ export function DriverHome() {
   const textMuted = isDark ? "#94A2B0" : "#5C6772";
 
   const zoneName = selected ? selected.name : data?.region?.name || "Hozirgi joy";
-  const activeTarifLabel = TARIFS.find((t) => t.key === tier)?.label || "Start";
+  const activeTarifLabel = TARIFS_LIST.find((t) => t.key === tier)?.label || t("passenger.tierStart");
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -328,22 +337,22 @@ export function DriverHome() {
               );
             })}
             {regions.length === 0 ? (
-              <Text style={{ color: textMuted, fontSize: 12, paddingVertical: 8 }}>Zonalar yuklanmoqda...</Text>
+              <Text style={{ color: textMuted, fontSize: 12, paddingVertical: 8 }}>{t("common.loading")}</Text>
             ) : null}
           </ScrollView>
 
           {/* Tarif tanlash */}
           <View style={styles.tarifRow}>
-            {TARIFS.map((t) => {
-              const active = tier === t.key;
-              const locked = !isPremium && t.key !== "econom";
+            {TARIFS_LIST.map((tItem) => {
+              const active = tier === tItem.key;
+              const locked = !isPremium && tItem.key !== "econom";
               // Faol tugma: kunduzi to'liq sariq (qora yozuv), tunda sariq yozuv (shaffof fon)
               const activeBg = isDark ? "rgba(255,204,0,0.18)" : "#FFCC00";
               const activeTxt = isDark ? "#FFCC00" : "#0F1216";
               return (
                 <Pressable
-                  key={t.key}
-                  onPress={() => (locked ? setPaywall(true) : setTier(t.key))}
+                  key={tItem.key}
+                  onPress={() => (locked ? setPaywall(true) : setTier(tItem.key))}
                   style={[
                     styles.tarifPill,
                     { borderColor: cardBorder },
@@ -354,7 +363,7 @@ export function DriverHome() {
                   {locked ? (
                     <Ionicons name="lock-closed" size={11} color="#FFCC00" style={{ marginRight: 3 }} />
                   ) : null}
-                  <Text style={[styles.tarifTxt, { color: active ? activeTxt : textPrimary }]}>{t.label}</Text>
+                  <Text style={[styles.tarifTxt, { color: active ? activeTxt : textPrimary }]}>{tItem.label}</Text>
                 </Pressable>
               );
             })}

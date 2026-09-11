@@ -12,12 +12,15 @@ import { apiGet, apiPost } from "@/lib/api/client";
 import { useAuth } from "@/store/auth";
 import { formatUzs, formatUzsShort, formatDateTime } from "@/lib/format";
 import type { Subscription, Transaction, PaymeCheckout } from "@/lib/api/types";
-
 import { useRouter } from "expo-router";
+import { useI18n } from "@/i18n";
+
+import { LanguageSwitchPill } from "@/components/LanguageSelectModal";
 
 export function BillingScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { t } = useI18n();
   const [sub, setSub] = useState<Subscription | null>(null);
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,13 +51,12 @@ export function BillingScreen() {
 
   const load = async () => {
     try {
-      const [s, t] = await Promise.all([
+      const [s, tData] = await Promise.all([
         apiGet<Subscription>("/billing/subscription/"),
         apiGet<{ results: Transaction[] }>("/billing/transactions/"),
       ]);
       setSub(s);
-      setTxns(t.results || []);
-      // Obuna holatini auth user'ga yozamiz — cheklovlar (gating) darhol yangilanadi
+      setTxns(tData.results || []);
       await useAuth.getState().loadMe().catch(() => {});
     } catch {
       /* ignore */
@@ -76,7 +78,7 @@ export function BillingScreen() {
         if (res.paid) {
           setPendingOrderId(null);
           await load();
-          Alert.alert("Muvaffaqiyatli!", "To'lov qabul qilindi — obuna 30 kunga uzaytirildi!");
+          Alert.alert(t("common.ready"), t("billing.paymentSuccess"));
         }
       } catch {
         /* ignore */
@@ -94,9 +96,10 @@ export function BillingScreen() {
       clearInterval(interval);
       subscription.remove();
     };
-  }, [pendingOrderId]);
+  }, [pendingOrderId, t]);
 
   const priceUzs = sub?.monthly_price_uzs || 0;
+  const isFree = priceUzs === 0 || ((sub?.discount_percent ?? 0) >= 100);
 
   /** Payme ilovasiga o'tib to'lash (Deep Link) */
   const openPaymeApp = async () => {
@@ -104,10 +107,16 @@ export function BillingScreen() {
     setBusy(true);
     try {
       const co = await apiPost<PaymeCheckout>("/billing/payme/checkout/", {});
+      if (co.paid || co.amount_uzs === 0) {
+        await load();
+        await useAuth.getState().loadMe().catch(() => {});
+        Alert.alert(t("common.ready"), co.detail || t("billing.paymentSuccess"));
+        return;
+      }
       setPendingOrderId(co.order_id);
       await Linking.openURL(co.checkout_url);
     } catch (err: any) {
-      Alert.alert("Xatolik", err?.data?.detail || "Qayta urinib ko'ring");
+      Alert.alert(t("common.error"), err?.data?.detail || t("common.retry"));
     } finally {
       setBusy(false);
     }
@@ -119,9 +128,15 @@ export function BillingScreen() {
     setBusy(true);
     try {
       const co = await apiPost<PaymeCheckout>("/billing/payme/checkout/", {});
+      if (co.paid || co.amount_uzs === 0) {
+        await load();
+        await useAuth.getState().loadMe().catch(() => {});
+        Alert.alert(t("common.ready"), co.detail || t("billing.paymentSuccess"));
+        return;
+      }
       setCheckout(co);
     } catch (err: any) {
-      Alert.alert("Xatolik", err?.data?.detail || "Qayta urinib ko'ring");
+      Alert.alert(t("common.error"), err?.data?.detail || t("common.retry"));
     } finally {
       setBusy(false);
     }
@@ -131,7 +146,7 @@ export function BillingScreen() {
     setCheckout(null);
     setPendingOrderId(null);
     load();
-    Alert.alert("Muvaffaqiyatli", "To'lov qabul qilindi — obuna 30 kunga uzaytirildi!");
+    Alert.alert(t("common.ready"), t("billing.paymentSuccess"));
   };
 
   /** Promo-kodni (aksiya) faollashtirish — bepul kun yoki chegirma */
@@ -141,49 +156,62 @@ export function BillingScreen() {
     setPromoBusy(true);
     setPromoMsg(null);
     try {
-      const res = await apiPost<{ detail: string }>("/billing/promo/redeem/", { code });
-      setPromoMsg({ ok: true, text: res.detail || "Promo-kod faollashtirildi!" });
+      const res = await apiPost<{ detail: string; activated?: boolean }>("/billing/promo/redeem/", { code });
       setPromoCode("");
       await load();
+      await useAuth.getState().loadMe().catch(() => {});
+
+      Alert.alert(t("common.ready"), res.detail || t("billing.promoSuccess"));
+      setPromoMsg({ ok: true, text: res.detail || t("billing.promoSuccess") });
     } catch (err: any) {
-      setPromoMsg({ ok: false, text: err?.data?.detail || "Promo-kodni faollashtirib bo'lmadi" });
+      setPromoMsg({ ok: false, text: err?.data?.detail || t("billing.promoFailed") });
     } finally {
       setPromoBusy(false);
     }
   };
 
   const cancel = () => {
-    Alert.alert("Obunani bekor qilish", "Avtomatik yangilanish o'chiriladi. Davom etamizmi?", [
-      { text: "Yo'q", style: "cancel" },
-      {
-        text: "Ha, bekor qil",
-        style: "destructive",
-        onPress: async () => {
-          setBusy(true);
-          try {
-            await apiPost("/billing/cancel/", {});
-            await load();
-          } finally {
-            setBusy(false);
-          }
+    Alert.alert(
+      t("billing.cancelConfirmTitle"),
+      t("billing.cancelConfirmMsg", { days: sub?.days_left || 0 }),
+      [
+        { text: t("billing.cancelNo"), style: "cancel" },
+        {
+          text: t("billing.cancelYes"),
+          style: "destructive",
+          onPress: async () => {
+            setBusy(true);
+            try {
+              await apiPost("/billing/cancel/", {});
+              await load();
+              Alert.alert(t("common.ready"), t("billing.cancelSuccess"));
+            } catch (err: any) {
+              Alert.alert(t("common.error"), err?.data?.detail || t("common.error"));
+            } finally {
+              setBusy(false);
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   return (
     <Screen refreshing={loading} onRefresh={load}>
       <Header
-        title="Obuna"
-        subtitle={priceUzs ? `Premium — oyiga ${formatUzs(priceUzs)}` : "Premium obuna"}
+        title={t("billing.title")}
+        subtitle={priceUzs ? t("billing.premiumSubtitle", { price: formatUzs(priceUzs) }) : t("billing.subscribeTitle")}
         onBack={() => router.back()}
+        right={<LanguageSwitchPill />}
       />
 
       <View style={[styles.premium, { backgroundColor: colors.black }]}>
         <View style={styles.premiumHead}>
           <View style={styles.premiumLabel}>
             <Ionicons name="diamond" size={16} color={colors.brand} />
-            <Text style={[styles.premiumLabelTxt, { color: colors.brand }]}>PREMIUM OBUNA</Text>
+            <Text style={[styles.premiumLabelTxt, { color: colors.brand }]}>
+              {t("billing.subscribeTitle").toUpperCase()}
+            </Text>
           </View>
           <Animated.View style={{ transform: [{ scale: pulseScale }], opacity: pulseOpacity }}>
             <Ionicons name="sparkles" size={24} color={colors.brand} />
@@ -191,23 +219,33 @@ export function BillingScreen() {
         </View>
         <Text style={styles.premiumPrice}>
           {formatUzsShort(priceUzs)}
-          <Text style={styles.premiumPer}> so'm/oy</Text>
+          <Text style={styles.premiumPer}>{t("billing.perMonth")}</Text>
         </Text>
-        <Text style={styles.premiumSub}>Payme orqali xavfsiz to'lov · Istalgan vaqt bekor qilish</Text>
+        <Text style={styles.premiumSub}>{t("billing.safePay")}</Text>
 
         {sub ? (
           <View style={styles.subBox}>
-            <SubRow label="Holat" value={sub.status_display} />
-            <SubRow label="Qoldi" value={`${sub.days_left} kun`} />
-            <SubRow label="Tugaydi" value={formatDateTime(sub.expires_at)} />
+            <SubRow label={t("billing.status")} value={sub.status_display} />
+            <SubRow label={t("billing.left")} value={t("billing.daysLeft", { days: sub.days_left })} />
+            <SubRow label={t("billing.expiresAt")} value={formatDateTime(sub.expires_at)} />
+            <SubRow
+              label={t("billing.nextCharge")}
+              value={sub.auto_renew ? t("billing.autoRenewActive") : t("billing.autoRenewOff")}
+            />
           </View>
         ) : null}
 
         {/* To'lash — Bitta tugma */}
         {(!sub || !sub.is_active || sub.days_left <= 3) ? (
           <Button
-            title={`To'lash (${formatUzs(priceUzs)})`}
-            onPress={() => setShowSelectModal(true)}
+            title={isFree ? t("billing.activateFreeBtn") : t("billing.payBtn", { amount: formatUzs(priceUzs) })}
+            onPress={() => {
+              if (isFree) {
+                openWebView();
+              } else {
+                setShowSelectModal(true);
+              }
+            }}
             loading={busy}
             style={{ marginTop: 16 }}
           />
@@ -215,22 +253,37 @@ export function BillingScreen() {
           <View style={styles.activeBox}>
             <Ionicons name="checkmark-circle" size={18} color={colors.brand} />
             <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-              Obuna faol — {sub.days_left} kun qoldi
+              {t("billing.activeBadge", { days: sub.days_left })}
             </Text>
           </View>
         )}
         {sub?.auto_renew ? (
           <Pressable onPress={cancel} style={styles.cancelBtn}>
-            <Text style={{ color: "rgba(255,255,255,0.8)", fontWeight: "700", fontSize: 13 }}>
-              Avtomatik yangilanishni bekor qilish
+            <Ionicons name="close-circle-outline" size={15} color="rgba(255,255,255,0.7)" style={{ marginRight: 6 }} />
+            <Text style={{ color: "rgba(255,255,255,0.85)", fontWeight: "700", fontSize: 13 }}>
+              {t("billing.cancelNextPayment")}
             </Text>
           </Pressable>
+        ) : sub?.is_active && !sub?.auto_renew ? (
+          <View style={styles.autoRenewOffBox}>
+            <Ionicons name="shield-outline" size={15} color="rgba(255,255,255,0.6)" />
+            <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "600" }}>
+              {t("billing.nextCharge")}: {t("billing.autoRenewOff")}
+            </Text>
+          </View>
         ) : null}
+
+        <View style={styles.noticeBox}>
+          <Ionicons name="information-circle-outline" size={15} color="rgba(255,255,255,0.6)" style={{ marginTop: 1 }} />
+          <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, flex: 1, lineHeight: 16 }}>
+            {t("billing.nextChargeNotice")}
+          </Text>
+        </View>
 
         <View style={styles.secure}>
           <Ionicons name="shield-checkmark" size={14} color={colors.brand} />
           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 11 }}>
-            Karta ma'lumotlari ilovada saqlanmaydi — to'lov Payme sahifasida amalga oshiriladi
+            {t("billing.secureNotice")}
           </Text>
         </View>
       </View>
@@ -239,16 +292,16 @@ export function BillingScreen() {
       <Card padded>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Ionicons name="gift-outline" size={18} color={colors.brandDark} />
-          <Text style={[styles.blockTitle, { color: colors.ink }]}>Promo-kod</Text>
+          <Text style={[styles.blockTitle, { color: colors.ink }]}>{t("billing.promoCode")}</Text>
         </View>
         <Text style={{ color: colors.inkMuted, fontSize: 12, marginBottom: 10 }}>
-          Aksiya kodingiz bo'lsa kiriting — bepul kunlar yoki chegirma olasiz.
+          {t("billing.promoSubtitle")}
         </Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TextInput
             value={promoCode}
-            onChangeText={(t) => setPromoCode(t.toUpperCase())}
-            placeholder="Masalan: TAXI2026"
+            onChangeText={(txt) => setPromoCode(txt.toUpperCase())}
+            placeholder={t("billing.promoPlaceholder")}
             placeholderTextColor={colors.inkMuted}
             autoCapitalize="characters"
             style={[styles.promoInput, { backgroundColor: colors.cardAlt, borderColor: colors.line, color: colors.ink }]}
@@ -261,7 +314,7 @@ export function BillingScreen() {
             {promoBusy ? (
               <ActivityIndicator size="small" color="#0F1216" />
             ) : (
-              <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 14 }}>Faollashtirish</Text>
+              <Text style={{ color: "#0F1216", fontWeight: "900", fontSize: 14 }}>{t("billing.activate")}</Text>
             )}
           </Pressable>
         </View>
@@ -281,34 +334,34 @@ export function BillingScreen() {
 
       <Card padded>
         <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>
-          Tranzaksiyalar tarixi
+          {t("billing.history")}
         </Text>
         {txns.length === 0 ? (
           <Text style={{ color: colors.inkMuted, fontSize: 13, textAlign: "center", paddingVertical: 14 }}>
-            Hech qanday tranzaksiya yo'q
+            {t("billing.noHistory")}
           </Text>
         ) : (
-          txns.map((t) => {
+          txns.map((txn) => {
             const icon =
-              t.status === "success" ? "checkmark-circle" : t.status === "failed" ? "close-circle" : "time";
+              txn.status === "success" ? "checkmark-circle" : txn.status === "failed" ? "close-circle" : "time";
             const color =
-              t.status === "success" ? colors.green : t.status === "failed" ? colors.red : colors.orange;
+              txn.status === "success" ? colors.green : txn.status === "failed" ? colors.red : colors.orange;
             return (
-              <View key={t.id} style={[styles.txn, { borderBottomColor: colors.line }]}>
+              <View key={txn.id} style={[styles.txn, { borderBottomColor: colors.line }]}>
                 <Ionicons name={icon as any} size={20} color={color} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 13 }} numberOfLines={1}>
-                    {t.description}
+                    {txn.description}
                   </Text>
                   <Text style={{ color: colors.inkMuted, fontSize: 11, marginTop: 1 }}>
-                    {formatDateTime(t.created_at)} · {t.status_display}
+                    {formatDateTime(txn.created_at)} · {txn.status_display}
                   </Text>
-                  {t.error_message ? (
-                    <Text style={{ color: colors.red, fontSize: 11, marginTop: 1 }}>{t.error_message}</Text>
+                  {txn.error_message ? (
+                    <Text style={{ color: colors.red, fontSize: 11, marginTop: 1 }}>{txn.error_message}</Text>
                   ) : null}
                 </View>
                 <Text style={{ color: colors.ink, fontWeight: "900", fontSize: 14 }}>
-                  {formatUzs(t.amount_uzs)}
+                  {formatUzs(txn.amount_uzs)}
                 </Text>
               </View>
             );
@@ -354,6 +407,7 @@ function PaymeModal({
   onPaid: () => void;
 }) {
   const { colors } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -396,7 +450,7 @@ function PaymeModal({
               <View style={styles.webLoading}>
                 <ActivityIndicator size="large" color={colors.brand} />
                 <Text style={{ color: colors.inkMuted, marginTop: 12, fontSize: 13 }}>
-                  Payme yuklanmoqda...
+                  {t("billing.loadingPayme")}
                 </Text>
               </View>
             )}
@@ -437,6 +491,7 @@ function SelectPaymentModal({
   onWebView: () => void;
 }) {
   const { colors } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
 
   return (
@@ -447,9 +502,9 @@ function SelectPaymentModal({
           
           <View style={styles.methodModalHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.methodModalTitle}>To'lov usulini tanlang</Text>
+              <Text style={styles.methodModalTitle}>{t("billing.choosePaymentMethod")}</Text>
               <Text style={styles.methodModalSub}>
-                Obuna narxi: <Text style={{ color: "#fff", fontWeight: "900" }}>{formatUzs(amountUzs)} so'm</Text>
+                {t("billing.planPrice")} <Text style={{ color: "#fff", fontWeight: "900" }}>{formatUzs(amountUzs)}</Text>
               </Text>
             </View>
             <Pressable onPress={onClose} hitSlop={10}>
@@ -467,11 +522,11 @@ function SelectPaymentModal({
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>Payme</Text>
                   <View style={styles.activeBadge}>
-                    <Text style={styles.activeBadgeTxt}>FAOL</Text>
+                    <Text style={styles.activeBadgeTxt}>{t("billing.activeLabel")}</Text>
                   </View>
                 </View>
                 <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 2 }}>
-                  Payme ilovasi orqali tezkor to'lov
+                  {t("billing.paymeInstant")}
                 </Text>
               </View>
             </View>
@@ -480,7 +535,7 @@ function SelectPaymentModal({
               <View style={styles.paymeActionBtnPrimary}>
                 <Ionicons name="card-outline" size={16} color="#000" />
                 <Text style={{ color: "#000", fontWeight: "900", fontSize: 14 }}>
-                  To'lash
+                  {t("billing.payNow")}
                 </Text>
               </View>
             </View>
@@ -493,10 +548,10 @@ function SelectPaymentModal({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: "rgba(255,255,255,0.4)", fontWeight: "800", fontSize: 15 }}>Click</Text>
-              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1 }}>Click Evolution to'lov tizimi</Text>
+              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1 }}>{t("billing.clickDesc")}</Text>
             </View>
             <View style={styles.comingBadge}>
-              <Text style={styles.comingBadgeTxt}>TEZ ORADA</Text>
+              <Text style={styles.comingBadgeTxt}>{t("billing.soonLabel")}</Text>
             </View>
           </View>
 
@@ -507,10 +562,10 @@ function SelectPaymentModal({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: "rgba(255,255,255,0.4)", fontWeight: "800", fontSize: 15 }}>Paynet</Text>
-              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1 }}>Paynet ilovasi yoki terminal</Text>
+              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 1 }}>{t("billing.paynetDesc")}</Text>
             </View>
             <View style={styles.comingBadge}>
-              <Text style={styles.comingBadgeTxt}>TEZ ORADA</Text>
+              <Text style={styles.comingBadgeTxt}>{t("billing.soonLabel")}</Text>
             </View>
           </View>
         </Pressable>
@@ -545,7 +600,34 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
-  cancelBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
+  cancelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    marginTop: 6,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  autoRenewOffBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 8,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  noticeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 12,
+    padding: 10,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
   blockTitle: { fontSize: 15, fontWeight: "800" },
   promoInput: {
     flex: 1,

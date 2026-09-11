@@ -7,9 +7,12 @@ import { useAuth } from "@/store/auth";
 import { useTheme } from "@/theme";
 import { registerPushToken } from "@/lib/push";
 
+import { useI18n } from "@/i18n";
+
 export default function TabsLayout() {
   const { user, hydrated } = useAuth();
   const { colors, isDark } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
 
   // Foydalanuvchi kirgach push tokenni ro'yxatdan o'tkazamiz
@@ -22,18 +25,17 @@ export default function TabsLayout() {
   const isDriver = user?.role === "driver";
 
   // Navbar foni: kunduzi qora, tunda oq (foydalanuvchi so'rovi)
-  const barBg = isDark ? "#FFFFFF" : "#0F1216";
   const activeColor = colors.brand; // sariq
   const inactiveColor = isDark ? "#8A93A0" : "#9AA3AE";
 
-  // Yorliq doim bitta qatorda — uzun nom ("Statistika") tepaga chiqib ketmasligi uchun
+  // Yorliq doim bitta qatorda — uzun nom tepaga chiqib ketmasligi uchun
   const tabLabel = (label: string) =>
     ({ color }: { color: string; focused: boolean }) =>
       (
         <Text
           numberOfLines={1}
           allowFontScaling={false}
-          style={{ color, fontSize: 11, fontWeight: "800", textAlign: "center", width: 72 }}
+          style={{ color, fontSize: 11, fontWeight: "800", textAlign: "center", width: 78 }}
         >
           {label}
         </Text>
@@ -47,20 +49,17 @@ export default function TabsLayout() {
         tabBarActiveTintColor: activeColor,
         tabBarInactiveTintColor: inactiveColor,
         tabBarItemStyle: { paddingTop: 10, paddingBottom: 10, justifyContent: "center" },
-        // iPhone uslubidagi suzuvchi navbar — pastdan uzilgan, chetlardan qochgan
         tabBarStyle: {
           display: "none",
         },
         tabBarHideOnKeyboard: Platform.OS === "android",
       }}
-      // Suzuvchi navbar kontentni yopib qo'ymasligi uchun ekranlarga pastki bo'shliq
-      // beradigan sceneContainerStyle (ekranlar ScrollView ichida pastki padding qo'shadi)
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Asosiy",
-          tabBarLabel: tabLabel("Asosiy"),
+          title: t("nav.home"),
+          tabBarLabel: tabLabel(t("nav.home")),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
           ),
@@ -69,8 +68,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="stats"
         options={{
-          title: "Statistika",
-          tabBarLabel: tabLabel("Statistika"),
+          title: t("nav.stats"),
+          tabBarLabel: tabLabel(t("nav.stats")),
           href: isDriver ? "/(tabs)/stats" : null,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "stats-chart" : "stats-chart-outline"} size={22} color={color} />
@@ -80,8 +79,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="billing"
         options={{
-          title: "Obuna",
-          tabBarLabel: tabLabel("Obuna"),
+          title: t("nav.billing"),
+          tabBarLabel: tabLabel(t("nav.billing")),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "card" : "card-outline"} size={22} color={color} />
           ),
@@ -90,8 +89,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profil",
-          tabBarLabel: tabLabel("Profil"),
+          title: t("nav.profile"),
+          tabBarLabel: tabLabel(t("nav.profile")),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />
           ),

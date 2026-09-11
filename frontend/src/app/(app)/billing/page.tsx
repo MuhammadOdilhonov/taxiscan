@@ -39,14 +39,23 @@ export default function BillingPage() {
   }, []);
 
   const priceUzs = sub?.monthly_price_uzs || 0;
+  const isFree = priceUzs === 0 || ((sub?.discount_percent ?? 0) >= 100);
 
   const subscribe = async () => {
     setBusy(true);
     try {
       const co = await apiPost<PaymeCheckout>("/billing/payme/checkout/", {});
+      if (co.paid || co.amount_uzs === 0) {
+        await load();
+        await useAuth.getState().loadMe().catch(() => {});
+        alert(co.detail || "Obuna 100% chegirma bilan faollashtirildi!");
+        return;
+      }
       setCheckout(co);
       // Payme to'lov sahifasini yangi oynada ochamiz (checkout.paycom.uz iframe'da ochilmaydi)
-      window.open(co.checkout_url, "_blank", "noopener,noreferrer");
+      if (co.checkout_url) {
+        window.open(co.checkout_url, "_blank", "noopener,noreferrer");
+      }
     } catch (err: any) {
       alert(err?.data?.detail || "Xatolik. Qayta urinib ko'ring.");
     } finally {
@@ -61,11 +70,17 @@ export default function BillingPage() {
   };
 
   const cancel = async () => {
-    if (!confirm("Obunani bekor qilmoqchimisiz? Avtomatik yangilanish o'chiriladi.")) return;
+    if (
+      !confirm(
+        `Keyingi to'lovni bekor qilmoqchimisiz? Siz to'lagan kunlaringiz (${sub?.days_left || 0} kun) to'liq saqlanadi, faqat muddat tugagach keyingi oylik to'lov yechilmaydi.`
+      )
+    )
+      return;
     setBusy(true);
     try {
       await apiPost("/billing/cancel/", {});
       await load();
+      alert("Keyingi to'lov bekor qilindi. To'langan muddat tugaguncha obunadan to'liq foydalanishingiz mumkin.");
     } finally {
       setBusy(false);
     }
@@ -112,6 +127,10 @@ export default function BillingPage() {
                 <span className="opacity-80">Tugaydi</span>
                 <span className="font-bold">{formatDateTime(sub.expires_at)}</span>
               </div>
+              <div className="flex items-center justify-between text-sm mt-1.5">
+                <span className="opacity-80">Keyingi to'lov</span>
+                <span className="font-bold">{sub.auto_renew ? "Avtomatik yechiladi" : "O'chirilgan"}</span>
+              </div>
               {sub.discount_percent > 0 && (
                 <div className="flex items-center justify-between text-sm mt-1.5">
                   <span className="opacity-80">Promo chegirma</span>
@@ -121,25 +140,29 @@ export default function BillingPage() {
             </div>
           )}
 
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
             {/* To'lash — faqat obuna faol emas yoki 3 kundan kam qolganda */}
             {(!sub || !sub.is_active || sub.days_left <= 3) ? (
               <button onClick={subscribe} disabled={busy} className="btn-primary flex-1">
-                {busy ? <Spinner /> : `Payme orqali to'lash (${formatUzs(priceUzs)})`}
+                {busy ? <Spinner /> : isFree ? "Obunani faollashtirish (100% bepul)" : `Payme orqali to'lash (${formatUzs(priceUzs)})`}
               </button>
             ) : (
               <div className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-white/10 py-2.5 text-sm font-semibold">
                 <CheckCircle2 size={16} className="text-brand" /> Obuna faol — {sub.days_left} kun qoldi
               </div>
             )}
-            {sub?.auto_renew && (
-              <button onClick={cancel} disabled={busy} className="btn-outline !text-white !border-white/30 hover:!bg-white/10">
-                Bekor qilish
+            {sub?.auto_renew ? (
+              <button onClick={cancel} disabled={busy} className="btn-outline !text-white !border-white/30 hover:!bg-white/10 text-xs px-3 py-2">
+                Keyingi to'lovni bekor qilish
               </button>
-            )}
+            ) : null}
           </div>
 
-          <div className="mt-4 flex items-center gap-2 text-xs opacity-70">
+          <div className="mt-3 p-2.5 rounded-lg bg-white/5 text-xs opacity-75 leading-relaxed">
+            ⓘ To'langan obunani muddatidan oldin to'xtatib bo'lmaydi — barcha kunlaringiz to'liq saqlanadi. Faqat muddat tugagach keyingi oylik avtomatik to'lovni bekor qilish mumkin.
+          </div>
+
+          <div className="mt-3 flex items-center gap-2 text-xs opacity-70">
             <ShieldCheck size={14} className="text-brand" />
             Karta ma'lumotlari saytda saqlanmaydi — to'lov Payme sahifasida amalga oshiriladi
           </div>

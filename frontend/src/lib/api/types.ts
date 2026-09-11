@@ -187,6 +187,8 @@ export interface PaymeCheckout {
   order_id: number;
   amount_uzs: number;
   checkout_url: string;
+  paid?: boolean;
+  detail?: string;
 }
 
 export interface Card {

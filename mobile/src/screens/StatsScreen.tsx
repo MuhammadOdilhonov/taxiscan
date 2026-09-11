@@ -12,20 +12,15 @@ import { formatUzs, formatTime } from "@/lib/format";
 import type { HourlyStatsResponse } from "@/lib/api/types";
 import { useIsPremium } from "@/lib/subscription";
 import { PaywallSheet } from "@/components/PaywallSheet";
+import { useI18n } from "@/i18n";
 
 const REFRESH_SEC = 60;
-
-const TIER_TABS = [
-  { code: "econom", label: "Start" },
-  { code: "comfort", label: "Comfort" },
-  { code: "comfort_plus", label: "Comfort+" },
-  { code: "business", label: "Business" },
-];
 
 export function StatsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const isPremium = useIsPremium();
+  const { t } = useI18n();
   const [data, setData] = useState<HourlyStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [secsLeft, setSecsLeft] = useState(REFRESH_SEC);
@@ -88,6 +83,16 @@ export function StatsScreen() {
     return { points, max, base, hasData: active.length > 0 };
   }, [data, series, selBrand]);
 
+  const TIER_TABS = useMemo(
+    () => [
+      { code: "econom", label: t("passenger.tierStart") },
+      { code: "comfort", label: t("passenger.tierComfort") },
+      { code: "comfort_plus", label: t("passenger.tierComfortPlus") },
+      { code: "business", label: t("passenger.tierBusiness") },
+    ],
+    [t]
+  );
+
   const selColor = selBrand ? series.find((s) => s.brand === selBrand)?.color : null;
 
   // Statistika faqat obunali foydalanuvchilar uchun
@@ -95,7 +100,7 @@ export function StatsScreen() {
     return (
       <Screen>
         <Header
-          title="Real statistika"
+          title={t("stats.title")}
           onBack={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
         />
         <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 20, gap: 16 }}>
@@ -103,10 +108,10 @@ export function StatsScreen() {
             <Ionicons name="lock-closed" size={34} color="#FFCC00" />
           </View>
           <Text style={{ color: colors.ink, fontSize: 19, fontWeight: "900", textAlign: "center" }}>
-            Statistika obuna bilan ochiladi
+            {t("stats.title")}
           </Text>
           <Text style={{ color: colors.inkMuted, fontSize: 14, textAlign: "center", lineHeight: 20 }}>
-            Narx tendensiyalari va talab statistikasini ko'rish uchun obuna bo'ling.
+            {t("paywall.message")}
           </Text>
         </View>
         <PaywallSheet visible onClose={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} />
@@ -117,8 +122,8 @@ export function StatsScreen() {
   return (
     <Screen refreshing={loading} onRefresh={load}>
       <Header
-        title="Real statistika"
-        subtitle="Har bir taksopark o'rtacha narxi · 1 daqiqada yangilanadi"
+        title={t("stats.title")}
+        subtitle={t("stats.refreshIn", { sec: secsLeft })}
         onBack={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
         right={
           <View style={[styles.timerBadge, { backgroundColor: colors.card, borderColor: colors.line }]}>
@@ -130,13 +135,13 @@ export function StatsScreen() {
 
       {/* Tarif tanlovi — Start/Comfort/Comfort+/Business */}
       <View style={styles.tierRow}>
-        {TIER_TABS.map((t) => {
-          const has = !data?.available_tiers || data.available_tiers.includes(t.code);
-          const active = tier === t.code;
+        {TIER_TABS.map((tTab) => {
+          const has = !data?.available_tiers || data.available_tiers.includes(tTab.code);
+          const active = tier === tTab.code;
           return (
             <Pressable
-              key={t.code}
-              onPress={() => setTier(t.code)}
+              key={tTab.code}
+              onPress={() => setTier(tTab.code)}
               style={[
                 styles.tierTab,
                 {
@@ -147,7 +152,7 @@ export function StatsScreen() {
               ]}
             >
               <Text style={{ color: active ? "#fff" : colors.inkMuted, fontSize: 12, fontWeight: "800" }}>
-                {t.label}
+                {tTab.label}
               </Text>
             </Pressable>
           );
