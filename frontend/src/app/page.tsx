@@ -168,7 +168,7 @@ export default function Home() {
       {/* Features */}
       <section className="max-w-6xl mx-auto px-4 py-16">
         <h2 className="text-3xl md:text-4xl font-extrabold text-center text-ink">
-          Nima uchun TaxiNarx?
+          Nima uchun TaxiScan?
         </h2>
         <div className="mt-12 grid md:grid-cols-3 gap-6">
           {[
@@ -267,7 +267,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-ink-line py-6 text-center text-sm text-ink-muted">
-        © {new Date().getFullYear()} TaxiNarx. Toshkent.
+        © {new Date().getFullYear()} TaxiScan. Toshkent.
       </footer>
     </div>
   );

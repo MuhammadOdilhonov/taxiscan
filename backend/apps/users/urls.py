@@ -6,6 +6,7 @@ from .views import (
     PasswordResetRequestView, PasswordResetConfirmView,
     NotificationListView, NotificationUnreadCountView, NotificationMarkReadView,
     PushTokenView,
+    DeleteAccountLookupView, DeleteAccountVerifyView, DeleteAccountConfirmView,
 )
 
 urlpatterns = [
@@ -22,4 +23,7 @@ urlpatterns = [
     path("notifications/unread-count/", NotificationUnreadCountView.as_view(), name="notifications-unread"),
     path("notifications/mark-read/", NotificationMarkReadView.as_view(), name="notifications-mark-read"),
     path("push-token/", PushTokenView.as_view(), name="push-token"),
+    path("delete-account/lookup/", DeleteAccountLookupView.as_view(), name="delete-account-lookup"),
+    path("delete-account/verify/", DeleteAccountVerifyView.as_view(), name="delete-account-verify"),
+    path("delete-account/confirm/", DeleteAccountConfirmView.as_view(), name="delete-account-confirm"),
 ]

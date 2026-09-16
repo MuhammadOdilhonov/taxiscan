@@ -16,7 +16,7 @@ export function Logo({ size = 32, withText = true, className = "" }: { size?: nu
       {withText && (
         <div className="leading-none">
           <div className="font-bold text-ink text-lg tracking-tight">
-            Taxi<span className="text-brand-600">Narx</span>
+            Taxi<span className="text-brand-600">Scan</span>
           </div>
           <div className="text-[10px] text-ink-muted font-medium tracking-wide uppercase">
             Bir nuqtada hammasi

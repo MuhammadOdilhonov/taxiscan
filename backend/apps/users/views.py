@@ -168,6 +168,76 @@ class PasswordResetConfirmView(APIView):
         return Response({"detail": "Parol muvaffaqiyatli o'zgartirildi"})
 
 
+def _normalize_phone(raw):
+    """Kiritilgan telefon raqamni bazadagi formatga yaqinlashtiradi (+998XXXXXXXXX)."""
+    if not raw:
+        return ""
+    raw = str(raw).strip()
+    has_plus = raw.startswith("+")
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return ""
+    return ("+" + digits) if has_plus else digits
+
+
+def _find_user_by_phone(phone):
+    """Telefon raqam bo'yicha foydalanuvchini topadi (+ bilan yoki +siz)."""
+    if not phone:
+        return None
+    candidates = {phone}
+    if phone.startswith("+"):
+        candidates.add(phone[1:])
+    else:
+        candidates.add("+" + phone)
+    return User.objects.filter(phone__in=list(candidates)).first()
+
+
+class DeleteAccountLookupView(APIView):
+    """Telefon raqam bo'yicha hisobni qidiradi (o'chirishdan oldingi 1-qadam)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        phone = _normalize_phone(request.data.get("phone"))
+        if not phone:
+            return Response({"detail": "Telefon raqam kiriting"}, status=status.HTTP_400_BAD_REQUEST)
+        user = _find_user_by_phone(phone)
+        if not user:
+            return Response({"found": False})
+        return Response({
+            "found": True,
+            "full_name": user.full_name,
+            "phone": _mask_phone(user.phone),
+            "role": user.get_role_display(),
+        })
+
+
+class DeleteAccountVerifyView(APIView):
+    """Parolni tekshiradi (o'chirishdan oldingi 2-qadam)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        phone = _normalize_phone(request.data.get("phone"))
+        password = request.data.get("password") or ""
+        user = _find_user_by_phone(phone)
+        if not user or not user.check_password(password):
+            return Response({"valid": False, "detail": "Parol noto'g'ri"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"valid": True})
+
+
+class DeleteAccountConfirmView(APIView):
+    """Parolni qayta tekshirib, hisobni butunlay o'chiradi (yakuniy qadam)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        phone = _normalize_phone(request.data.get("phone"))
+        password = request.data.get("password") or ""
+        user = _find_user_by_phone(phone)
+        if not user or not user.check_password(password):
+            return Response({"detail": "Parol noto'g'ri"}, status=status.HTTP_400_BAD_REQUEST)
+        user.delete()
+        return Response({"detail": "Hisobingiz butunlay o'chirildi"}, status=status.HTTP_200_OK)
+
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer

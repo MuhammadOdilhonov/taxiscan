@@ -3,7 +3,7 @@ import "./globals.css";
 import { SiteThemeLoader } from "@/components/SiteThemeLoader";
 
 export const metadata: Metadata = {
-  title: "TaxiNarx — Toshkentdagi taksilar narxini taqqoslang",
+  title: "TaxiScan — Toshkentdagi taksilar narxini taqqoslang",
   description:
     "Yandex Go, Yango, MyTaxi, Uzum Taxi va ON Taxi narxlarini bir joyda taqqoslang. Eng arzon variantni 1 soniyada toping.",
   icons: {
