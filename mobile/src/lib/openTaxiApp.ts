@@ -221,3 +221,140 @@ export async function openTaxiAppByCode(
     ]
   );
 }
+
+/* =========================================================================
+   HAYDOVCHILAR UCHUN ILOVALAR (DRIVER APPS)
+   - Yandex -> Yandex Pro
+   - Fasten -> Yandex Pro (O'zbekistonda Fasten haydovchilari Yandex Pro orqali ishlaydi)
+   - Uklon  -> Uklon Driver
+   - MyTaxi -> MyTaxi Driver
+   - WB     -> WB Flot (Wildberries Fleet)
+========================================================================= */
+
+interface DriverBrandConfig {
+  name: string;
+  deeplinks: (s?: LatLng | null) => string[];
+  androidPackages: string[];
+  iosAppId?: string;
+  playStoreUrl?: string;
+}
+
+const DRIVER_BRANDS: Record<string, DriverBrandConfig> = {
+  yandex_go: {
+    name: "Yandex Pro",
+    deeplinks: () => [
+      "taximeter://",
+      "yandextaximeter://",
+      "yandexpro://",
+      "intent:#Intent;package=ru.yandex.taximeter;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+      "intent:#Intent;package=com.yandex.taximeter;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+    ],
+    androidPackages: ["ru.yandex.taximeter", "com.yandex.taximeter"],
+    iosAppId: "1482813587",
+    playStoreUrl: "https://play.google.com/store/apps/details?id=ru.yandex.taximeter",
+  },
+  fasten: {
+    name: "Yandex Pro", // Fasten haydovchilari O'zbekistonda Yandex Pro orqali buyurtma olishadi
+    deeplinks: () => [
+      "taximeter://",
+      "yandextaximeter://",
+      "yandexpro://",
+      "intent:#Intent;package=ru.yandex.taximeter;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+      "intent:#Intent;package=com.yandex.taximeter;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+    ],
+    androidPackages: ["ru.yandex.taximeter", "com.yandex.taximeter"],
+    iosAppId: "1482813587",
+    playStoreUrl: "https://play.google.com/store/apps/details?id=ru.yandex.taximeter",
+  },
+  uklon: {
+    name: "Uklon Driver",
+    deeplinks: () => [
+      "uklondriver://",
+      "uklon-driver://",
+      "uklon://driver",
+      "intent:#Intent;package=ua.com.uklon.driver;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+    ],
+    androidPackages: ["ua.com.uklon.driver"],
+    iosAppId: "956873539",
+    playStoreUrl: "https://play.google.com/store/apps/details?id=ua.com.uklon.driver",
+  },
+  mytaxi: {
+    name: "MyTaxi Driver",
+    deeplinks: () => [
+      "mytaxidriver://",
+      "mytaxi-driver://",
+      "mytaxi://driver",
+      "intent:#Intent;package=com.uznewmax.mytaxidriver;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+      "intent:#Intent;package=uz.mytaxi.driver;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+    ],
+    androidPackages: ["com.uznewmax.mytaxidriver", "uz.mytaxi.driver"],
+    iosAppId: "951478726",
+    playStoreUrl: "https://play.google.com/store/apps/details?id=com.uznewmax.mytaxidriver",
+  },
+  wb_taxi: {
+    name: "WB Flot",
+    deeplinks: () => [
+      "wbflot://",
+      "wbfleet://",
+      "wb-flot://",
+      "wbtaxidriver://",
+      "intent:#Intent;package=uz.wildberries.taxi.driver;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+      "intent:#Intent;package=ru.wildberries.taxi.driver;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end",
+    ],
+    androidPackages: ["uz.wildberries.taxi.driver", "ru.wildberries.taxi.driver"],
+    playStoreUrl: "https://play.google.com/store/apps/details?id=uz.wildberries.taxi.driver",
+  },
+};
+
+/**
+ * Haydovchilar uchun mos dasturni (Yandex Pro, Uklon Driver, MyTaxi Driver, WB Flot) ochish
+ */
+export async function openDriverTaxiApp(
+  service: ServiceInfo,
+  loc?: LatLng | null
+): Promise<void> {
+  const key = brandKey(service.code || service.brand || service.name);
+  await openDriverTaxiAppByCode(key, loc);
+}
+
+export async function openDriverTaxiAppByCode(
+  code: string,
+  loc?: LatLng | null
+): Promise<void> {
+  const key = brandKey(code);
+  const meta = DRIVER_BRANDS[key];
+  if (!meta) return;
+  const brandName = meta.name || code;
+
+  const candidateUrls = meta.deeplinks(loc);
+
+  // 1) Har bir deeplinkni ochishga urinib ko'ramiz
+  for (const url of candidateUrls) {
+    const success = await tryDirectOpen(url);
+    if (success) {
+      return;
+    }
+  }
+
+  // 2) Agar ilova o'rnatilmagan bo'lsa — Play Market / App Store taklifi
+  const pkg = meta.androidPackages[0];
+  Alert.alert(
+    `${brandName} ilovasi`,
+    `Telefoningizda haydovchilar uchun ${brandName} ilovasi topilmadi. Play Marketdan yuklab olasizmi?`,
+    [
+      { text: "Yo'q", style: "cancel" },
+      {
+        text: "Yuklab olish",
+        onPress: () => {
+          if (Platform.OS === "android") {
+            Linking.openURL(`market://details?id=${pkg}`).catch(() => {
+              Linking.openURL(meta.playStoreUrl || `https://play.google.com/store/apps/details?id=${pkg}`).catch(() => {});
+            });
+          } else if (meta.iosAppId) {
+            Linking.openURL(`https://apps.apple.com/app/id${meta.iosAppId}`).catch(() => {});
+          }
+        },
+      },
+    ]
+  );
+}

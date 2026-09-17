@@ -9,7 +9,7 @@ import { MapWebView, type MapZone } from "@/components/MapWebView";
 import { AppDrawer } from "@/components/AppDrawer";
 import { apiGet, apiPost } from "@/lib/api/client";
 import { formatUzs, formatNum } from "@/lib/format";
-import { openTaxiApp } from "@/lib/openTaxiApp";
+import { openDriverTaxiApp } from "@/lib/openTaxiApp";
 import type { EstimateResponse, Region, Tier, DemandResponse, DemandRegion } from "@/lib/api/types";
 import { useIsPremium } from "@/lib/subscription";
 import { PaywallSheet } from "@/components/PaywallSheet";
@@ -57,6 +57,7 @@ export function DriverHome() {
   const [demand, setDemand] = useState<DemandResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [tier, setTier] = useState<Tier>("econom");
+  const [secondsLeft, setSecondsLeft] = useState(15);
 
   const loadRegions = () => {
     apiGet<{ results: Region[] }>("/taxi/regions/")
@@ -91,6 +92,20 @@ export function DriverHome() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Har 15 soniyada haydovchi uchun narxlarni yangilab turish
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          refresh();
+          return 15;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [selected, myLoc]);
 
   const load = async (lat: number, lng: number) => {
     setLoading(true);
@@ -143,10 +158,10 @@ export function DriverHome() {
     }
   };
 
-  // Taksi logotipiga bosilganda o'sha brend ilovasini ochish (haydovchi joyi -> manzilsiz)
+  // Taksi logotipiga bosilganda o'sha brendning HAYDOVCHILAR ilovasini ochish (Yandex Pro, Uklon Driver, MyTaxi Driver, WB Flot)
   const openService = (row: EstimateResponse["results"][number]) => {
     const s = selected ? { lat: selected.center_lat, lng: selected.center_lng } : myLoc || DEFAULT;
-    openTaxiApp(row.service, s, null);
+    openDriverTaxiApp(row.service, s);
   };
 
   // Tanlangan tarif bo'yicha narxlar — QIMMATDAN ARZONGA (haydovchi ko'p to'laydiganini ko'radi)
@@ -205,13 +220,28 @@ export function DriverHome() {
         </Pressable>
 
         <View style={styles.topRightCardWrap}>
-          <View style={[styles.badgeHeader, { backgroundColor: isDark ? "#0A0D11" : "#FFFFFF" }]}>
+          <Pressable
+            onPress={() => {
+              setSecondsLeft(15);
+              refresh();
+            }}
+            style={[styles.badgeHeader, { backgroundColor: isDark ? "#0A0D11" : "#FFFFFF" }]}
+            hitSlop={8}
+          >
             <View style={styles.badgeLine} />
             <Text style={styles.badgeText} numberOfLines={1}>
               {activeTarifLabel}
             </Text>
+            <View style={styles.timerBadge}>
+              {loading ? (
+                <ActivityIndicator size={10} color="#FFCC00" />
+              ) : (
+                <Ionicons name="time-outline" size={11} color="#FFCC00" />
+              )}
+              <Text style={styles.timerBadgeText}>{secondsLeft}s</Text>
+            </View>
             <View style={styles.badgeLine} />
-          </View>
+          </Pressable>
 
           <View style={[styles.topRightCardBody, { backgroundColor: cardBg }]}>
             {loading ? (
@@ -429,6 +459,21 @@ const styles = StyleSheet.create({
   },
   badgeLine: { width: 10, height: 1, backgroundColor: "#FFCC00" },
   badgeText: { fontSize: 12, fontWeight: "900", color: "#FFCC00", letterSpacing: 0.3 },
+  timerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,204,0,0.12)",
+  },
+  timerBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#FFCC00",
+    fontVariant: ["tabular-nums"],
+  },
   topRightCardBody: {
     borderRadius: 18,
     paddingHorizontal: 12,

@@ -122,13 +122,6 @@ export default function LoginScreen() {
               </Pressable>
             </Link>
           </View>
-
-          <View style={[styles.demo, { backgroundColor: colors.brand + "1A", borderColor: colors.brand + "44" }]}>
-            <Text style={{ color: colors.inkMuted, fontSize: 12 }}>
-              <Text style={{ fontWeight: "800", color: colors.ink }}>{t("auth.testAccount")} </Text>
-              +998900000000 / admin12345
-            </Text>
-          </View>
         </Card>
       </View>
 

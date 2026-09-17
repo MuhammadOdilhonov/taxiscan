@@ -255,18 +255,6 @@ export function PassengerHome() {
       return;
     }
 
-    // Bepul foydalanuvchi — kunlik qidiruv limiti (yangi qidiruvda; qayta hisoblashda emas)
-    if (!calculated) {
-      const allowed = await canSearchToday();
-      if (!allowed) {
-        openPaywall(
-          "Kunlik limit tugadi",
-          "Bepul rejimda kuniga faqat 1 marta narx qidirish mumkin. Cheksiz qidirish uchun obuna bo'ling."
-        );
-        return;
-      }
-    }
-
     const finalEnd = validDest[validDest.length - 1];
     const stops = validDest.slice(0, validDest.length - 1).map((d) => ({
       lat: d.lat,
@@ -523,7 +511,7 @@ export function PassengerHome() {
           setDestinations([{ label: geo.label, lat, lng }]);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // Agar A nuqta (start) mavjud bo'lsa, darhol barcha taksi narxlarini taqqoslaymiz!
     if (start && start.lat !== 0 && start.lng !== 0) {
@@ -531,15 +519,8 @@ export function PassengerHome() {
     }
   }, [pendingDestination, start, tier]);
 
-  // Tarif o'zgarganda narxlarni yangilash (bepul foydalanuvchi faqat "Start" ni ko'radi)
+  // Tarif o'zgarganda narxlarni yangilash (Start, Comfort, Comfort+, Biznes)
   const handleSelectTarif = (selectedTier: Tier) => {
-    if (!isPremium && selectedTier !== "econom") {
-      openPaywall(
-        "Tarif qulflangan",
-        "Comfort, Comfort+ va Biznes tariflari obuna bilan ochiladi. Bepul rejimda faqat Start tarifi mavjud."
-      );
-      return;
-    }
     setTier(selectedTier);
     setSecondsLeft(15);
     if (data) {
@@ -714,9 +695,9 @@ export function PassengerHome() {
                     onPress={() =>
                       locked
                         ? openPaywall(
-                            t("paywall.title"),
-                            t("paywall.message")
-                          )
+                          t("paywall.title"),
+                          t("paywall.message")
+                        )
                         : openBrandApp(item)
                     }
                     hitSlop={6}
@@ -881,7 +862,6 @@ export function PassengerHome() {
             <View style={styles.tarifRowContainer}>
               {TARIFS_LIST.map((tItem) => {
                 const active = tier === tItem.key;
-                const locked = !isPremium && tItem.key !== "econom";
                 return (
                   <Pressable
                     key={tItem.key}
@@ -889,13 +869,9 @@ export function PassengerHome() {
                       styles.tarifPillBtn,
                       { backgroundColor: cardBg },
                       active && styles.tarifPillBtnActive,
-                      locked && { opacity: 0.7 },
                     ]}
                     onPress={() => handleSelectTarif(tItem.key)}
                   >
-                    {locked ? (
-                      <Ionicons name="lock-closed" size={11} color="#FFCC00" style={{ marginBottom: 2 }} />
-                    ) : null}
                     <Text style={[styles.tarifPillTxt, active && styles.tarifPillTxtActive]}>
                       {tItem.label}
                     </Text>
@@ -905,18 +881,42 @@ export function PassengerHome() {
             </View>
           </View>
         ) : (
-          /* KATTA SARIQ "NARXNI BILISH" TUGMASI */
-          <Pressable
-            style={styles.actionButton}
-            onPress={() => calculateRoutePrices(tier)}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#0F1216" size="small" />
-            ) : (
-              <Text style={styles.actionButtonText}>{t("passenger.compare")}</Text>
-            )}
-          </Pressable>
+          <View style={{ gap: 8 }}>
+            {/* TARIFLARNI TANLASH QATORI (Start, Comfort, Comfort+, Biznes) */}
+            <View style={styles.tarifRowContainer}>
+              {TARIFS_LIST.map((tItem) => {
+                const active = tier === tItem.key;
+                return (
+                  <Pressable
+                    key={tItem.key}
+                    style={[
+                      styles.tarifPillBtn,
+                      { backgroundColor: cardBg },
+                      active && styles.tarifPillBtnActive,
+                    ]}
+                    onPress={() => handleSelectTarif(tItem.key)}
+                  >
+                    <Text style={[styles.tarifPillTxt, active && styles.tarifPillTxtActive]}>
+                      {tItem.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* KATTA SARIQ "NARXLARNI TAQQOSLASH" TUGMASI */}
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => calculateRoutePrices(tier)}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#0F1216" size="small" />
+              ) : (
+                <Text style={styles.actionButtonText}>{t("passenger.compare")}</Text>
+              )}
+            </Pressable>
+          </View>
         )}
       </View>
 

@@ -7,22 +7,47 @@ const { withAndroidManifest } = require("@expo/config-plugins");
  * ketadi. Shu yerda taksi ilovalarining paketlari va scheme'larini ro'yxatga olamiz.
  */
 const TAXI_PACKAGES = [
+  // Yo'lovchi ilovalari
   "ru.yandex.taxi",              // Yandex Go
+  "ru.yandex.go",
+  "com.yandex.taxi",
   "ua.com.uklontaxi",           // Uklon
-  "com.fasten.rider",           // Fasten
+  "com.fasten.tashkent",        // Fasten
+  "com.fasten.rider",
   "uz.wildberries.taxi.client", // WB Taxi
   "com.uznewmax.mytaxi",        // MyTaxi
   "net.mytaxi.passenger",
   "uz.mytaxi.client",
+
+  // Haydovchilar ilovalari (Driver apps)
+  "ru.yandex.taximeter",        // Yandex Pro (Yandex va Fasten haydovchilari uchun)
+  "com.yandex.taximeter",
+  "ua.com.uklon.driver",        // Uklon Driver
+  "com.uznewmax.mytaxidriver",  // MyTaxi Driver
+  "uz.mytaxi.driver",
+  "uz.wildberries.taxi.driver", // WB Flot: haydovchilarga
+  "ru.wildberries.taxi.driver",
 ];
 
 const TAXI_SCHEMES = [
+  // Yo'lovchi
   "yandextaxi",
+  "yandexgo",
   "fasten",
+  "fastentashkent",
   "uklon",
   "uklonpassenger",
   "mytaxi",
   "wbtaxi",
+
+  // Haydovchi
+  "taximeter",
+  "yandextaximeter",
+  "yandexpro",
+  "uklondriver",
+  "mytaxidriver",
+  "wbflot",
+  "wbfleet",
 ];
 
 const withTaxiQueries = (config) => {
